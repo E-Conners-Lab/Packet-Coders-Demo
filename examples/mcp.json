@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "packet-coders-lab": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--project",
+        "/Users/elliotconner/PycharmProjects/Packet Coders Demo",
+        "packet-coders-mcp"
+      ],
+      "env": {
+        "PACKET_CODERS_INVENTORY": "/Users/elliotconner/PycharmProjects/Packet Coders Demo/configs/inventory.mock.yaml"
+      }
+    }
+  }
+}

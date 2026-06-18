@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "packet-coders-mcp"
+version = "0.1.0"
+description = "A small FastMCP network lab server for EVE-NG and Containerlab demos."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=3.4.2,<4",
+    "netmiko>=4.5,<5",
+    "PyYAML>=6.0.2,<7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0,<9",
+    "ruff>=0.11,<1",
+]
+
+[project.scripts]
+packet-coders-mcp = "packet_coders_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/packet_coders_mcp"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

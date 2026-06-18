@@ -1,0 +1,11 @@
+.DS_Store
+.idea/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+inventory.local.yaml
+mcp.local.json
+.env

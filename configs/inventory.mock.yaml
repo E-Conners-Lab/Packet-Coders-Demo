@@ -1,0 +1,18 @@
+defaults:
+  username: admin
+  password: admin  # nosec - placeholder for mock mode; real creds go in git-ignored inventory.local.yaml
+  platform: cisco_ios
+  port: 22
+  transport: mock
+
+devices:
+  r1:
+    host: mock-r1
+    role: edge
+  r2:
+    host: mock-r2
+    role: edge
+  spine1:
+    host: mock-spine1
+    role: spine
+    platform: arista_eos

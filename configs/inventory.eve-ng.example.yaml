@@ -1,0 +1,18 @@
+defaults:
+  username: admin
+  password: admin  # nosec - example placeholder; copy to git-ignored inventory.local.yaml and set real creds
+  platform: cisco_ios
+  port: 22
+  transport: ssh
+
+devices:
+  r1:
+    host: 192.0.2.11
+    role: edge
+  r2:
+    host: 192.0.2.12
+    role: edge
+  sw1:
+    host: 192.0.2.21
+    role: access
+    platform: arista_eos
