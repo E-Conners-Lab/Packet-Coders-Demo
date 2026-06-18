@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +22,12 @@ mcp = FastMCP(
 )
 
 
-@lru_cache(maxsize=1)
+# Lazy singleton: build the LabService (parse inventory, open device sessions)
+# on first use and reuse that one instance for the life of the process.
+# @cache memoizes the zero-arg call, so every tool shares the same service.
+# Call get_lab_service.cache_clear() to force a rebuild (e.g. after swapping
+# PACKET_CODERS_INVENTORY or in test fixtures).
+@cache
 def get_lab_service() -> LabService:
     inventory_path = os.environ.get(INVENTORY_ENV, str(DEFAULT_INVENTORY))
     return LabService(load_inventory(inventory_path))
