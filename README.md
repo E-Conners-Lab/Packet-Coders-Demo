@@ -12,7 +12,7 @@ network lab. It uses FastMCP and exposes a small, useful set of tools:
 | `get_bgp_summary` | Read BGP summary state with the right command per platform. |
 | `configure_device` | Push config lines, dry-run by default, with confirmation required. |
 
-The demo can run in mock mode with no lab, then switch to EVE-NG or Containerlab by changing
+The demo can run in mock mode with no lab, then switch to an EVE-NG lab by changing
 the inventory file.
 
 ## Architecture
@@ -23,7 +23,7 @@ flowchart LR
     B --> C["LabService"]
     C --> D{"Driver"}
     D -->|mock| E["Built-in sample routers"]
-    D -->|ssh/netmiko| F["EVE-NG or Containerlab nodes"]
+    D -->|ssh/netmiko| F["EVE-NG lab nodes"]
 ```
 
 FastMCP is deliberately thin here. The important teaching point is that MCP tools are just
@@ -126,7 +126,7 @@ Common `platform` values:
 | `cisco_nxos`, `nxos` | NX-OS style commands. |
 | `arista_eos`, `eos` | Arista EOS style commands. |
 | `junos`, `juniper_junos` | Junos style commands. |
-| `frr`, `linux_frr` | FRR through `vtysh`. Good for Containerlab. |
+| `frr`, `linux_frr` | FRR through `vtysh`. |
 
 ## EVE-NG Setup
 
@@ -139,35 +139,6 @@ Common `platform` values:
 ```bash
 PACKET_CODERS_INVENTORY=inventory.local.yaml uv run packet-coders-mcp
 ```
-
-## Containerlab Setup
-
-A ready-to-deploy topology ships in `clab/ai.clab.yml`: three Arista cEOS nodes — two edge
-routers (`r1`, `r2`) each peered to a spine (`spine1`) over OSPF area 0 and eBGP. The management
-IPs match `configs/inventory.containerlab.example.yaml`, so the MCP server can reach them with no
-extra wiring.
-
-Prerequisites: an x86_64 Linux host (cEOS is x86_64-only — it will not run on Apple Silicon),
-Docker, `containerlab`, and a cEOS image imported and tagged (free Arista account):
-
-```bash
-docker import cEOS-lab-4.35.1F.tar.xz ceos:4.35.1F
-```
-
-Set the `image:` tag in `clab/ai.clab.yml` to match your import, then deploy and run the server:
-
-```bash
-sudo containerlab deploy -t clab/ai.clab.yml
-cp configs/inventory.containerlab.example.yaml inventory.local.yaml
-PACKET_CODERS_INVENTORY=inventory.local.yaml uv run packet-coders-mcp
-```
-
-First cEOS boot takes a minute or two before SSH and the routing protocols are up. Tear the lab
-down with `sudo containerlab destroy -t clab/ai.clab.yml`.
-
-To use your own nodes instead, point the inventory at each node's management IPv4 address and set
-`platform:` per device. The command map also supports `frr` (via `vtysh -c "show ..."`), `junos`,
-and NX-OS platforms.
 
 ## Safety Model
 
@@ -184,7 +155,7 @@ This is a demo server, not a production change platform. It still has a few usef
 1. Start with `configs/inventory.mock.yaml` and list devices.
 2. Show `server.py` and how `@mcp.tool` turns Python functions into MCP tools.
 3. Run `get_ospf_neighbors` and `get_bgp_summary` against the mock lab.
-4. Switch `PACKET_CODERS_INVENTORY` to an EVE-NG or Containerlab inventory.
+4. Switch `PACKET_CODERS_INVENTORY` to an EVE-NG inventory.
 5. Run the same tools against the real lab.
 6. Demonstrate `configure_device` first as a dry run, then with `confirm=True` in a disposable lab.
 
