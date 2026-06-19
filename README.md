@@ -16,6 +16,36 @@ The demo can run in mock mode with no lab, then switch to a real EVE-NG lab by c
 the inventory file. The same server works from Claude Code, Claude Desktop, or a fully
 local LLM stack (Ollama / vLLM) — see [Connecting a client](#connecting-a-client).
 
+## Try it in 5 minutes (no lab, no extra hardware)
+
+You do **not** need a network lab, a GPU, Tailscale, or an API key to see a local LLM
+drive these tools. One laptop with [Ollama](https://ollama.com) and
+[uv](https://docs.astral.sh/uv/) is enough — the server ships with a built-in **mock lab**.
+
+```bash
+# 1. Pull a small tool-calling model (~2 GB; needs ~8 GB RAM)
+ollama pull llama3.2
+
+# 2. Install this project
+uv venv && uv pip install -e .
+
+# 3. Ask a local model a question about the (mock) lab
+LLM_MODEL=llama3.2 uv run python scripts/local_llm_smoke.py "List the lab devices."
+```
+
+Expected: the model calls `list_lab_devices` and answers `r1, r2, spine1` — all running
+locally, no cloud, no network gear. The script defaults to local Ollama
+(`http://localhost:11434/v1`) and the mock inventory, and only exposes read-only tools.
+
+**That's the whole loop.** From here you can scale up *one variable at a time*:
+
+| Want… | Change just this |
+| --- | --- |
+| Better tool-calling | `ollama pull qwen3:8b` then `LLM_MODEL=qwen3:8b` |
+| A different/remote model | `LLM_BASE_URL=http://<host>:11434/v1` (Ollama) or `:8000/v1` (vLLM) |
+| A real lab instead of mock | `PACKET_CODERS_INVENTORY=./inventory.local.yaml` (see [EVE-NG Setup](#eve-ng-setup)) |
+| A chat UI | add Open WebUI (see [Local LLMs](#local-llms-ollama--vllm)) |
+
 ## Architecture
 
 ```mermaid
@@ -247,15 +277,23 @@ consistent at function calling) on the **read-only** tools, or on `configure_dev
 [Safety model](#safety-model)).
 
 **Smoke-test the chain first.** Before wiring up a UI, confirm the model can actually drive
-the tools against your lab with `scripts/local_llm_smoke.py`. It exposes only the read-only
-tools (no `configure_device`), so it can never write to a device, and reads the backend from
-the environment:
+the tools with `scripts/local_llm_smoke.py` (the same script from the
+[5-minute quickstart](#try-it-in-5-minutes-no-lab-no-extra-hardware)). It exposes only the
+read-only tools (no `configure_device`), so it can never write to a device. The simplest run
+needs nothing but a local model:
+
+```bash
+LLM_MODEL=llama3.2 uv run python scripts/local_llm_smoke.py "List the lab devices."
+```
+
+Point it at your real backends and lab by overriding the defaults
+(`LLM_BASE_URL=http://localhost:11434/v1`, mock inventory):
 
 ```bash
 LLM_BASE_URL=http://<your-tailnet-host>:11434/v1 \
-LLM_MODEL=<your-tool-calling-model> \
+LLM_MODEL=qwen3.6:35b-32k \
 PACKET_CODERS_INVENTORY=./inventory.local.yaml \
-  uv run --project . python scripts/local_llm_smoke.py "Are SW1's OSPF neighbors all FULL?"
+  uv run python scripts/local_llm_smoke.py "Are SW1's OSPF neighbors all FULL?"
 ```
 
 Works the same against vLLM — point `LLM_BASE_URL` at `http://<host>:8000/v1`. It isolates
