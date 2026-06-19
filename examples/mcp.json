@@ -5,11 +5,11 @@
       "args": [
         "run",
         "--project",
-        "/Users/elliotconner/PycharmProjects/Packet Coders Demo",
+        "<ABSOLUTE_PATH_TO_REPO>",
         "packet-coders-mcp"
       ],
       "env": {
-        "PACKET_CODERS_INVENTORY": "/Users/elliotconner/PycharmProjects/Packet Coders Demo/configs/inventory.mock.yaml"
+        "PACKET_CODERS_INVENTORY": "<ABSOLUTE_PATH_TO_REPO>/configs/inventory.mock.yaml"
       }
     }
   }
