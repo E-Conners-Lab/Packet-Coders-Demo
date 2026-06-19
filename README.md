@@ -246,6 +246,22 @@ consistent at function calling) on the **read-only** tools, or on `configure_dev
 *not* want unattended writes — keep a human in the loop for any real change (see
 [Safety model](#safety-model)).
 
+**Smoke-test the chain first.** Before wiring up a UI, confirm the model can actually drive
+the tools against your lab with `scripts/local_llm_smoke.py`. It exposes only the read-only
+tools (no `configure_device`), so it can never write to a device, and reads the backend from
+the environment:
+
+```bash
+LLM_BASE_URL=http://<your-tailnet-host>:11434/v1 \
+LLM_MODEL=<your-tool-calling-model> \
+PACKET_CODERS_INVENTORY=./inventory.local.yaml \
+  uv run --project . python scripts/local_llm_smoke.py "Are SW1's OSPF neighbors all FULL?"
+```
+
+Works the same against vLLM — point `LLM_BASE_URL` at `http://<host>:8000/v1`. It isolates
+the local-model half of the chain: if this passes, any failure in Open WebUI is in the host
+config, not the model or the server.
+
 ## Inventory Model
 
 Inventory is YAML:
