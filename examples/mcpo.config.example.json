@@ -1,0 +1,25 @@
+{
+  "_comment": "mcpo multi-server config: serves several MCP servers behind one mcpo, each under its own path prefix (/packet-coders, /filesystem). Copy to a machine-local path (e.g. ~/.config/packet-coders-mcpo.config.json), replace the placeholders, then run: uvx mcpo --port 8000 --api-key <KEY> --config <this-file>. In Open WebUI add ONE tool server per prefix, e.g. http://<host>:8000/packet-coders and http://<host>:8000/filesystem.",
+  "mcpServers": {
+    "packet-coders": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--project",
+        "<ABSOLUTE_PATH_TO_REPO>",
+        "packet-coders-mcp"
+      ],
+      "env": {
+        "PACKET_CODERS_INVENTORY": "<ABSOLUTE_PATH_TO_REPO>/configs/inventory.mock.yaml"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem@2026.1.14",
+        "<ABSOLUTE_PATH_TO_A_DEDICATED_SANDBOX_DIR>"
+      ]
+    }
+  }
+}

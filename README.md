@@ -300,6 +300,43 @@ Works the same against vLLM — point `LLM_BASE_URL` at `http://<host>:8000/v1`.
 the local-model half of the chain: if this passes, any failure in Open WebUI is in the host
 config, not the model or the server.
 
+### Adding external connectors (multi-server mcpo)
+
+The lab server is just one MCP server — the same host can combine it with off-the-shelf
+connectors. `mcpo` mounts **several MCP servers behind one process** via a config file, each
+under its own URL prefix. A template is in `examples/mcpo.config.example.json`; it adds the
+official [filesystem connector](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem)
+alongside the lab server:
+
+```bash
+# fill in the placeholders first, then:
+uvx mcpo --port 8000 --api-key "$KEY" --config ~/.config/packet-coders-mcpo.config.json
+```
+
+Each server is served under `/<name>`, so in Open WebUI you add **one tool server per
+prefix**:
+
+| Connector | Open WebUI tool-server URL |
+| --- | --- |
+| Lab tools | `http://<host>:8000/packet-coders` |
+| Filesystem | `http://<host>:8000/filesystem` |
+
+> **Migrating from a single-server mcpo:** switching to `--config` moves the lab tools from
+> the root URL to `/packet-coders`. Update your existing Open WebUI connection's URL or it
+> will stop returning tools.
+
+A natural demo: the model checks the lab, then **writes the report to a file** via the
+filesystem connector ("save SW1's OSPF status to `ospf-report.md`").
+
+**Connector safety (AI-2 / SEC):**
+- **Scope the filesystem connector to a dedicated sandbox directory** — pass that one path as
+  its argument, never `$HOME` or the repo. The server refuses access outside it
+  (`list_allowed_directories` shows the boundary); it can read **and write** within it.
+- **Pin the connector version** (`@…@2026.1.14`) and treat `npx -y` as installing a
+  dependency — vet it like any other (SEC-30 / PLAN-12).
+- Use the **Function Name Filter List** in Open WebUI to drop tools you don't want exposed
+  (e.g. `!move_file`, `!edit_file`) the same way you would `!configure_device`.
+
 ## Inventory Model
 
 Inventory is YAML:
