@@ -2,17 +2,21 @@
 
 Connects to the Packet Coders MCP server in-process, exposes only the read-only
 tools to a local OpenAI-compatible model (Ollama or vLLM), runs the tool-calling
-loop, and lets the model answer a question about the live lab.
+loop, and lets the model answer a question about the lab.
 
 `configure_device` is intentionally withheld so this test can never write to a
 device. Backend URL, model, and inventory come from the environment so no host
 or credential is baked into the file.
 
-Usage:
+Simplest run (no lab, no extra hardware) -- local Ollama + the mock inventory:
+    LLM_MODEL=llama3.2 uv run python scripts/local_llm_smoke.py "List the lab devices."
+
+Defaults: LLM_BASE_URL=http://localhost:11434/v1 (local Ollama) and the server's
+built-in mock inventory (no lab needed). Override either for a real setup:
     LLM_BASE_URL=http://<host>:11434/v1 \
     LLM_MODEL=qwen3.6:35b-32k \
     PACKET_CODERS_INVENTORY=./inventory.local.yaml \
-    uv run --project . python scripts/local_llm_smoke.py "Are SW1's OSPF neighbors all FULL?"
+    uv run python scripts/local_llm_smoke.py "Are SW1's OSPF neighbors all FULL?"
 """
 
 from __future__ import annotations
@@ -72,10 +76,10 @@ def _tool_result_to_text(result: object) -> str:
 
 
 async def run(prompt: str) -> int:
-    base_url = _require_env("LLM_BASE_URL").rstrip("/")
+    base_url = os.environ.get("LLM_BASE_URL", "http://localhost:11434/v1").rstrip("/")
     model = _require_env("LLM_MODEL")
-    # Force the MCP server onto the chosen inventory before its lazy singleton builds.
-    os.environ.setdefault("PACKET_CODERS_INVENTORY", "./inventory.local.yaml")
+    # If PACKET_CODERS_INVENTORY is unset, the server falls back to its built-in
+    # mock inventory -- so this runs end-to-end with no lab. Set it for a real one.
 
     from packet_coders_mcp.server import mcp  # imported after env is set
 
