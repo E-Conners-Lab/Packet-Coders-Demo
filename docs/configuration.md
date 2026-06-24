@@ -18,6 +18,38 @@ cp .env.example .env   # then edit
 | `OLLAMA_BASE_URL` | bundled Ollama | Model backend. `make up-host` sets this to your host Ollama for you. |
 | `LLM_MODEL` | `qwen3:8b` | Model the **bundled** Ollama pulls on `docker compose up`. (Ignored by `make up-host`.) |
 
+## Docker image
+
+The Compose stack pulls a pre-built, multi-arch (`linux/amd64` + `linux/arm64`) image rather
+than building locally. It's pinned in `docker-compose.yml`:
+
+```yaml
+image: ghcr.io/e-conners-lab/packet-coders-mcpo:v1
+pull_policy: always   # always fetch the known-good image on `up`
+```
+
+Tags published to GHCR:
+
+| Tag | Meaning |
+| --- | --- |
+| `:v1` | Rolling "known-good" tag — what Compose pulls. Tracks the latest tested build. |
+| `:YYYY-MM-DD[-suffix]` | Immutable dated snapshots for reproducible deploys / rollback (e.g. `:2026-06-24-async`). |
+
+**Pin a fixed build** (instead of the rolling `:v1`) by setting a dated tag in
+`docker-compose.yml`:
+
+```yaml
+image: ghcr.io/e-conners-lab/packet-coders-mcpo:2026-06-24-async
+```
+
+**Rebuild after code changes:** `docker compose build mcpo` rebuilds locally. Maintainers
+republish the multi-arch image with:
+
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t ghcr.io/e-conners-lab/packet-coders-mcpo:v1 --push .
+```
+
 ## Run the server natively (no Docker)
 
 Install the project:
