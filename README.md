@@ -10,11 +10,37 @@ network lab. It uses FastMCP and exposes a small, useful set of tools:
 | `run_health_check` | Run a small health bundle against one device or the whole lab. |
 | `get_ospf_neighbors` | Read OSPF neighbor state with the right command per platform. |
 | `get_bgp_summary` | Read BGP summary state with the right command per platform. |
-| `configure_device` | Push config lines behind a write-enable flag + a one-time out-of-band confirmation code (off by default). |
+| `configure_device` | Push config lines, gated by a one-time out-of-band confirmation code (read-only mode is one flag). |
 
 The demo can run in mock mode with no lab, then switch to a real EVE-NG lab by changing
 the inventory file. The same server works from Claude Code, Claude Desktop, or a fully
 local LLM stack (Ollama / vLLM) — see [Connecting a client](#connecting-a-client).
+
+## Quickstart — one command (Docker)
+
+Spin up the **whole stack** — chat UI, lab tools, and a local model — with one command.
+No Python setup, no manual wiring. The code stays in the repo for you to read/edit in your IDE.
+
+```bash
+git clone https://github.com/E-Conners-Lab/Packet-Coders-Demo.git
+cd packet-coders-mcp
+docker compose up            # first run pulls images + the qwen3:8b model (a few minutes)
+```
+
+Open **http://localhost:3000** (no login). One-time: **Settings → Integrations →** add
+`http://localhost:8000` as a tool server, set the model's **Function Calling → Native**, then
+ask *"list the lab devices."* Defaults to the **mock lab** (no hardware). Config changes are
+available but **gated**: each one prints a one-time confirmation code to the server console that
+*you* must read back before it applies — a model can't self-approve (see [Safety Model](#safety-model)).
+
+| Want… | Command |
+| --- | --- |
+| Faster model on a Mac (host Ollama, Metal GPU) | `make up-host` |
+| Read-only (hide the write tool entirely) | `make readonly` |
+| The real EVE-NG lab | uncomment the inventory mount in `docker-compose.yml`, then `docker compose up` |
+| Stop everything | `make down` |
+
+Prefer no Docker? Run it natively in 5 minutes instead:
 
 ## Try it in 5 minutes (no lab, no extra hardware)
 
@@ -464,16 +490,16 @@ management IPs, and no machine-specific paths**:
 
 This is a demo server, not a production change platform. Its guardrails, strongest first:
 
-- **Writes are disabled by default.** Unless the server is started with
-  `PACKET_CODERS_ALLOW_WRITES=true`, the `configure_device` tool is **not even advertised** — an
-  auto-executing host like Open WebUI never sees it. The flag is a human, out-of-band control read
-  from the process environment, so **a connected model cannot set it**.
-- **A real change needs an out-of-band confirmation code the model never sees.** With writes
-  enabled, the first `configure_device` call returns a preview and prints a one-time code to the
-  **server console (stderr) only** — never in the tool response. To apply, a human reads that code
-  off the console and calls again with `confirm_code` set to it. Because the code never reaches the
-  model, the model **cannot self-approve**, even on an auto-executing host like Open WebUI. This is
-  the human-in-the-loop gate, and it works with **any** model (Qwen included) and **any** client.
+- **Every real change needs an out-of-band confirmation code the model never sees.** The first
+  `configure_device` call returns a preview and prints a one-time code to the **server console
+  (stderr) only** — never in the tool response. To apply, a human reads that code off the console
+  and calls again with `confirm_code` set to it. Because the code never reaches the model, the
+  model **cannot self-approve**, even on an auto-executing host like Open WebUI. This is the
+  human-in-the-loop gate, and it works with **any** model (Qwen included) and **any** client.
+- **Read-only is one flag.** `configure_device` is exposed by default (behind that gate). Start the
+  server with `PACKET_CODERS_ALLOW_WRITES=false` for a strictly read-only deployment, where the tool
+  is **not even advertised** — an auto-executing host never sees it. That flag is read from the
+  process environment, so **a connected model cannot change it.**
 - **Or use a host that confirms each tool call.** Claude Desktop / Claude Code additionally prompt
   you to approve every tool call — a second, host-level way to keep a human in the loop.
 - `send_command` blocks obvious config and destructive commands.
