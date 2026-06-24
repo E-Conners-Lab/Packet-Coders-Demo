@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>From Chat to MCP — Build the Local LLM Network Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:        #0a0e13;
+    --bg-2:      #0e141c;
+    --panel:     #121a24;
+    --panel-2:   #16202c;
+    --line:      rgba(255,255,255,0.08);
+    --line-2:    rgba(255,255,255,0.14);
+    --ink:       #e7eef6;
+    --muted:     #8a99ab;
+    --faint:     #5d6b7d;
+    --copper:    #e8a04b;
+    --copper-dim:#a9712f;
+    --cyan:      #54cdd6;
+    --full:      #74dd8e;
+    --warn:      #f0c04b;
+    --danger:    #ef6f6f;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: 'IBM Plex Sans', system-ui, sans-serif;
+    --maxw: 1080px;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-weight: 400;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* Atmospheric layers */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(900px 500px at 12% -8%, rgba(232,160,75,0.10), transparent 60%),
+      radial-gradient(800px 600px at 100% 10%, rgba(84,205,214,0.08), transparent 55%),
+      radial-gradient(1000px 800px at 50% 120%, rgba(232,160,75,0.05), transparent 60%);
+    pointer-events: none; z-index: 0;
+  }
+  body::after {
+    content: "";
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(ellipse 120% 80% at 50% 0%, #000 35%, transparent 78%);
+    pointer-events: none; z-index: 0;
+  }
+
+  ::selection { background: var(--copper); color: #14110b; }
+
+  .wrap { position: relative; z-index: 1; max-width: var(--maxw); margin: 0 auto; padding: 0 28px; }
+
+  /* ---- Top status bar ---- */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(10px);
+    background: rgba(10,14,19,0.72);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar-inner {
+    max-width: var(--maxw); margin: 0 auto; padding: 11px 28px;
+    display: flex; align-items: center; gap: 18px;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em;
+  }
+  .brand { color: var(--ink); font-weight: 700; white-space: nowrap; }
+  .brand .slash { color: var(--copper); }
+  .topbar nav { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; }
+  .topbar nav a {
+    color: var(--muted); text-decoration: none; padding: 5px 10px; border-radius: 6px;
+    transition: color .2s, background .2s;
+  }
+  .topbar nav a:hover { color: var(--ink); background: var(--panel); }
+  .status-dot { width:7px; height:7px; border-radius:50%; background: var(--full);
+    box-shadow:0 0 0 0 rgba(116,221,142,.6); animation: pulse 2.4s infinite; display:inline-block; }
+  @keyframes pulse {
+    0% { box-shadow:0 0 0 0 rgba(116,221,142,.55); }
+    70% { box-shadow:0 0 0 7px rgba(116,221,142,0); }
+    100% { box-shadow:0 0 0 0 rgba(116,221,142,0); }
+  }
+
+  /* ---- Hero ---- */
+  .hero { padding: 92px 0 64px; position: relative; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.32em; text-transform: uppercase;
+    color: var(--copper); display: flex; align-items: center; gap: 12px; margin-bottom: 26px;
+  }
+  .eyebrow::before { content:""; width: 38px; height: 1px; background: var(--copper-dim); }
+  h1 {
+    font-family: var(--mono); font-weight: 700;
+    font-size: clamp(40px, 7vw, 78px); line-height: 0.98; letter-spacing: -0.02em;
+    margin: 0 0 8px;
+  }
+  h1 .accent { color: var(--copper); }
+  h1 .arrow { color: var(--cyan); font-weight: 500; }
+  .hero .lede {
+    font-size: clamp(16px, 2.1vw, 20px); color: var(--muted); max-width: 640px;
+    margin: 26px 0 0; line-height: 1.55;
+  }
+  .hero .lede strong { color: var(--ink); font-weight: 600; }
+  .hero-meta {
+    margin-top: 38px; display: flex; gap: 10px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 12.5px;
+  }
+  .chip {
+    border: 1px solid var(--line-2); border-radius: 999px; padding: 7px 14px;
+    color: var(--muted); background: var(--panel); display: inline-flex; align-items:center; gap: 8px;
+  }
+  .chip b { color: var(--ink); font-weight: 600; }
+  .chip .k { color: var(--cyan); }
+
+  /* reveal animation */
+  .reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s ease, transform .7s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+  .stagger > * { opacity:0; transform: translateY(18px); animation: rise .8s forwards; }
+  @keyframes rise { to { opacity:1; transform:none; } }
+  .stagger > *:nth-child(1){ animation-delay:.05s }
+  .stagger > *:nth-child(2){ animation-delay:.16s }
+  .stagger > *:nth-child(3){ animation-delay:.27s }
+  .stagger > *:nth-child(4){ animation-delay:.38s }
+  .stagger > *:nth-child(5){ animation-delay:.49s }
+
+  /* ---- Section scaffolding ---- */
+  section { padding: 60px 0; border-top: 1px solid var(--line); }
+  .sec-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 34px; flex-wrap: wrap; }
+  .sec-num { font-family: var(--mono); font-size: 13px; color: var(--copper); letter-spacing: 0.1em; }
+  h2 { font-family: var(--mono); font-weight: 700; font-size: clamp(24px, 3.4vw, 34px);
+       letter-spacing: -0.01em; margin: 0; }
+  .sec-sub { color: var(--muted); max-width: 620px; margin: 14px 0 0; font-size: 15.5px; }
+
+  /* ---- Architecture diagram ---- */
+  .arch {
+    display: grid; gap: 16px; grid-template-columns: 1fr;
+  }
+  .arch-flow {
+    display: grid; grid-template-columns: 1.1fr auto 1fr; align-items: center; gap: 0;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 26px;
+  }
+  @media (max-width: 760px){ .arch-flow { grid-template-columns: 1fr; gap: 18px; } .arch-conn{ display:none } }
+  .node-box {
+    border: 1px solid var(--line-2); border-radius: 11px; padding: 18px; background: var(--bg-2);
+    position: relative;
+  }
+  .node-box h4 { margin: 0 0 4px; font-family: var(--mono); font-size: 14px; color: var(--ink); }
+  .node-box p { margin: 0; font-size: 13px; color: var(--muted); }
+  .node-box .tag {
+    position:absolute; top:-10px; left:14px; font-family:var(--mono); font-size:10.5px;
+    letter-spacing:.12em; text-transform:uppercase; padding:2px 8px; border-radius:6px;
+    background: var(--panel-2); border:1px solid var(--line-2); color: var(--cyan);
+  }
+  .sub-list { margin: 14px 0 0; padding: 0; list-style: none; display:grid; gap:8px; }
+  .sub-list li {
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    border:1px solid var(--line); border-radius:8px; padding:8px 10px; background: var(--panel);
+    display:flex; align-items:center; gap:8px;
+  }
+  .sub-list li .dot { width:6px; height:6px; border-radius:50%; flex:none; }
+  .arch-conn { display:flex; align-items:center; justify-content:center; padding: 0 18px; }
+  .arch-conn svg { width: 100%; min-width: 80px; height: 40px; }
+
+  /* ---- Topology ---- */
+  .topo-grid { display:grid; grid-template-columns: 1.15fr 0.85fr; gap: 22px; align-items: stretch; }
+  @media (max-width: 880px){ .topo-grid { grid-template-columns: 1fr; } }
+  .topo-card, .meta-card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px;
+    position: relative; overflow: hidden;
+  }
+  .topo-card svg { display:block; width:100%; height:auto; }
+  .topo-legend {
+    display:flex; gap:18px; flex-wrap:wrap; padding: 10px 14px 14px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--muted);
+  }
+  .topo-legend span { display:flex; align-items:center; gap:7px; }
+  .swatch { width:14px; height:3px; border-radius:2px; display:inline-block; }
+  .meta-card { padding: 22px; }
+  table.routers { width:100%; border-collapse: collapse; font-family: var(--mono); font-size: 12.5px; }
+  table.routers th, table.routers td { text-align:left; padding: 9px 8px; border-bottom: 1px solid var(--line); }
+  table.routers th { color: var(--faint); font-weight:500; text-transform:uppercase; letter-spacing:.08em; font-size:10.5px; }
+  table.routers td { color: var(--ink); }
+  table.routers td .rid { color: var(--copper); }
+  .full-pill {
+    font-family: var(--mono); font-size: 10.5px; color: var(--full); border:1px solid rgba(116,221,142,.32);
+    background: rgba(116,221,142,.08); border-radius:999px; padding:2px 9px; display:inline-flex; gap:6px; align-items:center;
+  }
+
+  /* ---- Steps ---- */
+  .steps { display:grid; gap: 18px; }
+  .step {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow:hidden;
+    transition: border-color .25s, transform .25s;
+  }
+  .step:hover { border-color: var(--line-2); transform: translateY(-2px); }
+  .step-head { display:flex; align-items:center; gap: 16px; padding: 18px 20px; }
+  .step-n {
+    font-family: var(--mono); font-weight: 700; font-size: 15px;
+    width: 38px; height: 38px; flex:none; border-radius: 10px;
+    display:flex; align-items:center; justify-content:center;
+    color: var(--copper); background: rgba(232,160,75,0.10); border:1px solid rgba(232,160,75,0.3);
+  }
+  .step-title { font-family: var(--mono); font-size: 16px; font-weight: 600; }
+  .step-title .sub { display:block; font-family: var(--sans); font-size: 13px; color: var(--muted); font-weight:400; margin-top:3px; }
+
+  /* ---- Code blocks ---- */
+  .code {
+    position: relative; background: #070b10; border-top: 1px solid var(--line);
+    font-family: var(--mono); font-size: 13px; line-height: 1.75;
+  }
+  .code pre { margin:0; padding: 16px 50px 16px 20px; overflow-x:auto; }
+  .code .cmt { color: var(--faint); }
+  .code .var { color: var(--cyan); }
+  .code .str { color: var(--full); }
+  .code .prompt { color: var(--copper); user-select:none; }
+  .code .out { color: var(--muted); }
+  .copy-btn {
+    position:absolute; top:10px; right:10px; font-family:var(--mono); font-size:11px;
+    color: var(--muted); background: var(--panel); border:1px solid var(--line-2); border-radius:7px;
+    padding:5px 10px; cursor:pointer; transition: all .18s;
+  }
+  .copy-btn:hover { color: var(--ink); border-color: var(--copper-dim); }
+  .copy-btn.done { color: var(--full); border-color: rgba(116,221,142,.4); }
+
+  .expect {
+    display:flex; gap:10px; align-items:flex-start; padding: 13px 20px; font-size: 13.5px;
+    color: var(--muted); border-top: 1px solid var(--line); background: var(--bg-2);
+  }
+  .expect b { color: var(--ink); font-weight:600; }
+  .expect .ico { color: var(--full); font-family:var(--mono); flex:none; }
+  .expect code { font-family: var(--mono); color: var(--copper); font-size: 12.5px;
+    background: rgba(232,160,75,.08); padding:1px 6px; border-radius:5px; }
+
+  /* ---- Scale table ---- */
+  .scale-grid { display:grid; grid-template-columns: repeat(2,1fr); gap: 14px; }
+  @media (max-width: 720px){ .scale-grid { grid-template-columns: 1fr; } }
+  .scale-card {
+    background: var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px;
+    transition: border-color .25s, transform .25s;
+  }
+  .scale-card:hover { border-color: var(--cyan); transform: translateY(-2px); }
+  .scale-card .want { font-size:14px; color: var(--ink); font-weight:600; margin-bottom:10px; display:flex; gap:8px; align-items:center; }
+  .scale-card .want::before { content:"›"; color: var(--cyan); font-family:var(--mono); }
+  .scale-card code { font-family:var(--mono); font-size:12px; color:var(--copper); display:block;
+    background:#070b10; border:1px solid var(--line); border-radius:8px; padding:10px 12px; overflow-x:auto; white-space:pre; }
+
+  /* ---- Gotchas ---- */
+  .gotchas { display:grid; gap:16px; }
+  .gotcha {
+    background: linear-gradient(180deg, var(--panel), var(--bg-2));
+    border:1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 0 12px 12px 0; padding: 20px 22px;
+  }
+  .gotcha.crit { border-left-color: var(--danger); }
+  .gotcha h4 { margin:0 0 8px; font-family:var(--mono); font-size:15px; display:flex; gap:10px; align-items:center; }
+  .gotcha h4 .badge {
+    font-size:10px; letter-spacing:.1em; text-transform:uppercase; padding:2px 8px; border-radius:6px;
+    background: rgba(240,192,75,.12); color: var(--warn); border:1px solid rgba(240,192,75,.3);
+  }
+  .gotcha.crit h4 .badge { background: rgba(239,111,111,.12); color: var(--danger); border-color: rgba(239,111,111,.3); }
+  .gotcha p { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
+  .gotcha p code, .gotcha li code { font-family:var(--mono); font-size:12.5px; color: var(--copper);
+    background: rgba(232,160,75,.08); padding:1px 6px; border-radius:5px; }
+  .gotcha .fix { margin-top:12px; font-size:13.5px; color: var(--ink); }
+  .gotcha .fix b { color: var(--cyan); }
+  .compare { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px; }
+  @media (max-width:620px){ .compare{ grid-template-columns:1fr } }
+  .compare > div { border:1px solid var(--line); border-radius:9px; padding:12px 14px; background:var(--bg-2); }
+  .compare h5 { margin:0 0 6px; font-family:var(--mono); font-size:12.5px; }
+  .compare .ok h5 { color: var(--full); }
+  .compare .no h5 { color: var(--danger); }
+  .compare p { margin:0; font-size:12.5px; color:var(--muted); }
+  .compare code { color:var(--copper); font-family:var(--mono); font-size:11.5px; }
+
+  /* ---- Safety ---- */
+  .safety { display:grid; grid-template-columns: repeat(2,1fr); gap:14px; }
+  @media (max-width:720px){ .safety{ grid-template-columns:1fr } }
+  .guard { border:1px solid var(--line); border-radius:11px; padding:16px 18px; background:var(--panel);
+    font-size:13.5px; color:var(--muted); display:flex; gap:12px; }
+  .guard .lk { color: var(--full); font-family:var(--mono); flex:none; }
+  .guard b { color:var(--ink); font-weight:600; }
+  .guard code { font-family:var(--mono); font-size:12px; color:var(--copper); }
+
+  /* ---- Footer ---- */
+  footer { border-top:1px solid var(--line); padding: 46px 0 70px; }
+  .flow-list { counter-reset: step; display:grid; gap:10px; margin: 18px 0 0; padding:0; list-style:none; }
+  .flow-list li { counter-increment: step; position:relative; padding-left: 42px; font-size:14px; color:var(--muted); }
+  .flow-list li::before {
+    content: counter(step,decimal-leading-zero); position:absolute; left:0; top:0;
+    font-family:var(--mono); font-size:12px; color:var(--copper);
+    border:1px solid var(--line-2); border-radius:6px; padding:2px 7px;
+  }
+  .flow-list li b { color: var(--ink); font-weight:600; }
+  .foot-tag { font-family:var(--mono); font-size:12px; color:var(--faint); margin-top:40px; display:flex; gap:10px; align-items:center; }
+
+  a.inline { color: var(--cyan); text-decoration: none; border-bottom:1px solid rgba(84,205,214,.3); }
+  a.inline:hover { border-color: var(--cyan); }
+
+  /* ============ PRESENTER MODE — clean audience deck ============ */
+  .present-btn {
+    margin-left: 14px; font-family: var(--mono); font-size: 12px; letter-spacing:.04em; font-weight:600;
+    color: #14110b; background: var(--copper); border:1px solid var(--copper); border-radius:7px;
+    padding:6px 13px; cursor:pointer; white-space:nowrap; transition: filter .2s, transform .15s;
+  }
+  .present-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+  #deck { display:none; }
+  body.presenting { overflow:hidden; }
+  body.presenting .topbar { display:none; }
+  body.presenting #deck { display:block; }
+
+  #deck .slide {
+    position:fixed; inset:0; z-index:40;
+    display:flex; flex-direction:column; justify-content:safe center; align-items:flex-start;
+    padding: clamp(48px,8vh,104px) clamp(40px,9vw,150px);
+    overflow-y:auto;
+    background: radial-gradient(1200px 700px at 14% 8%, rgba(232,160,75,.06), transparent 60%),
+                radial-gradient(900px 600px at 100% 100%, rgba(84,205,214,.05), transparent 55%),
+                var(--bg);
+    opacity:0; visibility:hidden; pointer-events:none; transform: translateY(26px);
+    transition: opacity .5s ease, transform .5s ease, visibility .5s;
+  }
+  #deck .slide.active { opacity:1; visibility:visible; pointer-events:auto; transform:none; }
+
+  #deck .inner { width:100%; max-width: 1180px; margin: 0 auto; }
+  #deck .s-kicker {
+    font-family:var(--mono); font-size: clamp(12px,1.3vw,16px); letter-spacing:.3em;
+    text-transform:uppercase; color:var(--copper); display:flex; align-items:center; gap:14px;
+    margin-bottom: clamp(20px,3.4vh,34px);
+  }
+  #deck .s-kicker::before { content:""; width:48px; height:1px; background:var(--copper-dim); }
+  #deck .s-title {
+    font-family:var(--mono); font-weight:700; letter-spacing:-0.02em; line-height:1.02; margin:0;
+    font-size: clamp(40px,6.4vw,84px);
+  }
+  #deck .s-title.sm { font-size: clamp(30px,4.4vw,58px); }
+  #deck .s-title .ac { color:var(--copper); }
+  #deck .s-title .cy { color:var(--cyan); }
+  #deck .s-lead {
+    font-size: clamp(19px,2.5vw,30px); color:var(--muted); line-height:1.45;
+    max-width: 26ch; margin: clamp(22px,3.4vh,38px) 0 0;
+  }
+  #deck .s-lead.wide { max-width: 40ch; }
+  #deck .s-lead b { color:var(--ink); font-weight:600; }
+  #deck .s-lead .ac { color:var(--copper); font-weight:600; }
+
+  #deck .s-points { list-style:none; margin: clamp(26px,4vh,48px) 0 0; padding:0;
+    display:grid; gap: clamp(14px,2.3vh,24px); }
+  #deck .s-points.two { grid-template-columns: 1fr 1fr; column-gap: clamp(28px,5vw,72px); }
+  @media (max-width:720px){ #deck .s-points.two { grid-template-columns:1fr; } }
+  #deck .s-points li { font-size: clamp(18px,2.3vw,29px); color:var(--ink);
+    display:flex; gap:16px; align-items:baseline; line-height:1.25; }
+  #deck .s-points li .m { font-family:var(--mono); color:var(--copper); font-size:.62em; flex:none; }
+  #deck .s-points li .cy { color:var(--cyan); }
+  #deck .s-points.mono li { font-family:var(--mono); font-size: clamp(16px,2vw,26px); }
+
+  #deck .s-cmds { display:grid; gap: clamp(12px,2vh,20px); margin-top: clamp(28px,4vh,48px); width:100%; }
+  #deck .s-cmd {
+    font-family:var(--mono); font-size: clamp(15px,1.85vw,24px); color:var(--ink);
+    background:#070b10; border:1px solid var(--line-2); border-left:3px solid var(--copper);
+    border-radius:11px; padding: clamp(14px,2vh,22px) clamp(18px,2.4vw,28px);
+    overflow-x:auto; white-space:pre;
+  }
+  #deck .s-cmd .p { color:var(--copper); } #deck .s-cmd .v { color:var(--cyan); }
+  #deck .s-cmd .c { color:var(--faint); } #deck .s-cmd .s { color:var(--full); }
+  #deck .s-note { margin-top: clamp(22px,3.4vh,40px); font-size: clamp(16px,1.9vw,24px); color:var(--muted); }
+  #deck .s-note .ok { color:var(--full); font-family:var(--mono); }
+
+  #deck .lab-stage { width:100%; max-width: 620px; align-self:center; margin-top: clamp(18px,3vh,38px); }
+  #deck .lab-stage svg { display:block; width:100%; height:auto; }
+
+  /* route-code legend (C / O / B) — reused on deck slide + scroll page */
+  .route-legend {
+    display:flex; flex-wrap:wrap; justify-content:center; gap: clamp(12px,2.2vw,32px);
+    margin-top: clamp(16px,2.6vh,28px); font-family:var(--mono); align-self:center;
+  }
+  .route-legend .rl { display:flex; align-items:center; gap:9px;
+    font-size: clamp(11.5px,1.35vw,16px); color:var(--muted); }
+  .route-legend .rl b {
+    width:1.85em; height:1.85em; flex:none; display:flex; align-items:center; justify-content:center;
+    border-radius:7px; font-weight:700; font-size:.92em;
+  }
+  .route-legend .rl b.c { color:var(--cyan);   background:rgba(84,205,214,.12);  border:1px solid rgba(84,205,214,.4); }
+  .route-legend .rl b.o { color:var(--copper); background:rgba(232,160,75,.12);  border:1px solid rgba(232,160,75,.4); }
+  .route-legend .rl b.b { color:var(--full);   background:rgba(116,221,142,.12); border:1px solid rgba(116,221,142,.4); }
+  .route-legend .rl em { font-style:normal; color:var(--faint); }
+
+  /* progress + chrome */
+  .present-progress {
+    position:fixed; top:0; left:0; height:3px; width:0; background:var(--copper);
+    z-index:61; display:none; transition: width .5s ease; box-shadow: 0 0 12px rgba(232,160,75,.6);
+  }
+  body.presenting .present-progress { display:block; }
+  .present-chrome {
+    position:fixed; left:0; right:0; bottom:0; z-index:60; display:none;
+    align-items:center; justify-content:center; gap:18px; padding:18px;
+    font-family:var(--mono); font-size:13px; color:var(--muted); pointer-events:none;
+    background: linear-gradient(180deg, transparent, rgba(7,11,16,.92));
+  }
+  body.presenting .present-chrome { display:flex; }
+  .present-chrome .pc-btn {
+    pointer-events:auto; cursor:pointer; color:var(--ink); background:var(--panel);
+    border:1px solid var(--line-2); border-radius:9px; width:40px; height:40px;
+    display:flex; align-items:center; justify-content:center; font-size:18px; transition: all .18s;
+  }
+  .present-chrome .pc-btn:hover { border-color: var(--copper-dim); color: var(--copper); transform: translateY(-1px); }
+  .present-chrome .counter { letter-spacing:.08em; min-width:62px; text-align:center; }
+  .present-chrome .counter b { color: var(--copper); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <span class="brand">packet<span class="slash">·</span>coders <span style="color:var(--faint)">// lab</span></span>
+    <span class="status-dot" title="lab online"></span>
+    <span style="color:var(--muted)">4× EOS · OSPF + eBGP · FULL</span>
+    <nav>
+      <a href="#picture">Picture</a>
+      <a href="#lab">Lab</a>
+      <a href="#build">Build</a>
+      <a href="#scale">Scale</a>
+      <a href="#gotchas">Gotchas</a>
+      <a href="#safety">Safety</a>
+    </nav>
+    <button id="presentBtn" class="present-btn" title="Present (P)">▶ Present</button>
+  </div>
+</div>
+
+<header class="hero wrap">
+  <div class="stagger">
+    <div class="eyebrow">A network engineer's path through AI</div>
+    <h1>From Chat <span class="arrow">→</span><br>to <span class="accent">MCP</span>.</h1>
+    <p class="lede">
+      Stand up a <strong>fully local</strong> AI assistant that can actually read your network —
+      driven by <strong>Ollama</strong>, wired to a live lab through <strong>MCP tools</strong>,
+      with <strong>no cloud API and no secrets leaving the box</strong>. This page is the
+      follow-along: copy each block, run it, watch a local model call real tools.
+    </p>
+    <div class="hero-meta">
+      <span class="chip"><span class="k">need</span> <b>one laptop</b></span>
+      <span class="chip"><span class="k">need</span> <b>Ollama + uv</b></span>
+      <span class="chip"><span class="k">optional</span> <b>Tailscale · GPU box · real lab</b></span>
+      <span class="chip">⏱ <b>~5 min</b> to first tool call</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<!-- ============ THE PICTURE ============ -->
+<section id="picture" class="wrap reveal">
+  <div class="sec-head">
+    <span class="sec-num">01</span>
+    <div>
+      <h2>The shape of the thing</h2>
+      <p class="sec-sub">One idea unlocks all of this: the <b style="color:var(--ink)">model never speaks MCP</b>.
+        A <b style="color:var(--ink)">host</b> runs the tool-calling loop and connects typed tools to whatever
+        model you point it at. Swap the model freely.</p>
+    </div>
+  </div>
+
+  <div class="arch">
+    <div class="arch-flow">
+      <div class="node-box">
+        <span class="tag">host</span>
+        <h4>Open WebUI</h4>
+        <p>Your chat UI. Runs the tool-calling loop. Talks to tools via <b style="color:var(--cyan)">mcpo</b>, and to a model for completions.</p>
+        <ul class="sub-list">
+          <li><span class="dot" style="background:var(--copper)"></span> mcpo → packet-coders-mcp</li>
+          <li><span class="dot" style="background:var(--cyan)"></span> chat completions → backend ↘</li>
+        </ul>
+      </div>
+
+      <div class="arch-conn">
+        <svg viewBox="0 0 120 40" fill="none" aria-hidden="true">
+          <line x1="0" y1="20" x2="112" y2="20" stroke="var(--copper-dim)" stroke-width="1.5" stroke-dasharray="5 5">
+            <animate attributeName="stroke-dashoffset" from="20" to="0" dur="1.1s" repeatCount="indefinite"/>
+          </line>
+          <path d="M104 14 L114 20 L104 26" stroke="var(--copper)" stroke-width="1.5" fill="none"/>
+        </svg>
+      </div>
+
+      <div class="node-box">
+        <span class="tag">inference</span>
+        <h4>Local model backend</h4>
+        <p>Serves chat completions. Pick either — the host doesn't care which.</p>
+        <ul class="sub-list">
+          <li><span class="dot" style="background:var(--full)"></span> <b style="color:var(--ink)">Ollama</b> @ :11434 — easy, great default</li>
+          <li><span class="dot" style="background:var(--copper)"></span> <b style="color:var(--ink)">vLLM</b> @ :8000/v1 — OpenAI-compatible, GPU</li>
+        </ul>
+      </div>
+    </div>
+    <div class="node-box" style="border-style:dashed">
+      <span class="tag" style="color:var(--copper)">tools</span>
+      <h4>packet-coders-mcp &nbsp;·&nbsp; <span style="color:var(--muted);font-weight:400">six typed Python functions</span></h4>
+      <p style="margin-bottom:12px">MCP tools are just functions with good docstrings. The networking stays in a normal service layer; FastMCP is deliberately thin.</p>
+      <ul class="sub-list" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); display:grid;">
+        <li><span class="dot" style="background:var(--cyan)"></span> list_lab_devices</li>
+        <li><span class="dot" style="background:var(--cyan)"></span> send_command <span style="color:var(--faint)">(read-only)</span></li>
+        <li><span class="dot" style="background:var(--cyan)"></span> run_health_check</li>
+        <li><span class="dot" style="background:var(--cyan)"></span> get_ospf_neighbors</li>
+        <li><span class="dot" style="background:var(--cyan)"></span> get_bgp_summary</li>
+        <li><span class="dot" style="background:var(--copper)"></span> configure_device <span style="color:var(--faint)">(gated)</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ THE LAB ============ -->
+<section id="lab" class="wrap reveal">
+  <div class="sec-head">
+    <span class="sec-num">02</span>
+    <div>
+      <h2>The lab it reads</h2>
+      <p class="sec-sub">Four Arista EOS switches in a full mesh, running <b style="color:var(--ink)">OSPF + eBGP</b>
+        together. Every switch holds a <b style="color:var(--full)">FULL</b> OSPF adjacency and an
+        <b style="color:var(--full)">Established</b> eBGP session with the other three. You don't need this to
+        start — the server ships a <b style="color:var(--ink)">mock lab</b> — but this is what the live demo drives.</p>
+    </div>
+  </div>
+
+  <div class="topo-grid">
+    <div class="topo-card">
+      <svg viewBox="0 0 560 420" role="img" aria-label="Four-switch full mesh topology">
+        <defs>
+          <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <radialGradient id="nodeG" cx="50%" cy="35%" r="70%">
+            <stop offset="0%" stop-color="#1c2937"/><stop offset="100%" stop-color="#0d141d"/>
+          </radialGradient>
+        </defs>
+
+        <!-- links (full mesh: 6) -->
+        <g stroke="var(--copper-dim)" stroke-width="2" opacity="0.9">
+          <line class="lnk" x1="280" y1="74"  x2="92"  y2="250"/>
+          <line class="lnk" x1="280" y1="74"  x2="468" y2="250"/>
+          <line class="lnk" x1="280" y1="74"  x2="280" y2="372"/>
+          <line class="lnk" x1="92"  y1="250" x2="468" y2="250"/>
+          <line class="lnk" x1="92"  y1="250" x2="280" y2="372"/>
+          <line class="lnk" x1="468" y1="250" x2="280" y2="372"/>
+        </g>
+        <!-- animated signal pulses on links -->
+        <g stroke="var(--copper)" stroke-width="2" stroke-dasharray="4 90" opacity="0.85">
+          <line x1="280" y1="74"  x2="92"  y2="250"><animate attributeName="stroke-dashoffset" from="0" to="-94" dur="2.6s" repeatCount="indefinite"/></line>
+          <line x1="280" y1="74"  x2="468" y2="250"><animate attributeName="stroke-dashoffset" from="0" to="-94" dur="2.9s" repeatCount="indefinite"/></line>
+          <line x1="280" y1="74"  x2="280" y2="372"><animate attributeName="stroke-dashoffset" from="0" to="-94" dur="3.2s" repeatCount="indefinite"/></line>
+          <line x1="92"  y1="250" x2="468" y2="250"><animate attributeName="stroke-dashoffset" from="0" to="-94" dur="2.4s" repeatCount="indefinite"/></line>
+          <line x1="92"  y1="250" x2="280" y2="372"><animate attributeName="stroke-dashoffset" from="0" to="-94" dur="3.0s" repeatCount="indefinite"/></line>
+          <line x1="468" y1="250" x2="280" y2="372"><animate attributeName="stroke-dashoffset" from="0" to="-94" dur="2.7s" repeatCount="indefinite"/></line>
+        </g>
+
+        <!-- subnet labels -->
+        <g font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--faint)">
+          <text x="158" y="150" text-anchor="middle">.12.12/24</text>
+          <text x="402" y="150" text-anchor="middle">.13.13/24</text>
+          <text x="296" y="225" text-anchor="start">.14.14/24</text>
+          <text x="280" y="243" text-anchor="middle">.23.23/24</text>
+          <text x="158" y="330" text-anchor="middle">.24.24/24</text>
+          <text x="402" y="330" text-anchor="middle">.34.34/24</text>
+        </g>
+
+        <!-- nodes -->
+        <g font-family="IBM Plex Mono, monospace">
+          <!-- SW1 -->
+          <g filter="url(#glow)">
+            <rect x="232" y="40" width="96" height="56" rx="11" fill="url(#nodeG)" stroke="var(--copper)" stroke-width="1.4"/>
+          </g>
+          <text x="280" y="65" text-anchor="middle" font-size="15" font-weight="700" fill="var(--ink)">SW1</text>
+          <text x="280" y="83" text-anchor="middle" font-size="10" fill="var(--cyan)">10.255.0.1</text>
+          <!-- SW2 -->
+          <g filter="url(#glow)">
+            <rect x="44" y="222" width="96" height="56" rx="11" fill="url(#nodeG)" stroke="var(--copper)" stroke-width="1.4"/>
+          </g>
+          <text x="92" y="247" text-anchor="middle" font-size="15" font-weight="700" fill="var(--ink)">SW2</text>
+          <text x="92" y="265" text-anchor="middle" font-size="10" fill="var(--cyan)">10.255.0.2</text>
+          <!-- SW3 -->
+          <g filter="url(#glow)">
+            <rect x="420" y="222" width="96" height="56" rx="11" fill="url(#nodeG)" stroke="var(--copper)" stroke-width="1.4"/>
+          </g>
+          <text x="468" y="247" text-anchor="middle" font-size="15" font-weight="700" fill="var(--ink)">SW3</text>
+          <text x="468" y="265" text-anchor="middle" font-size="10" fill="var(--cyan)">10.255.0.3</text>
+          <!-- SW4 -->
+          <g filter="url(#glow)">
+            <rect x="232" y="344" width="96" height="56" rx="11" fill="url(#nodeG)" stroke="var(--copper)" stroke-width="1.4"/>
+          </g>
+          <text x="280" y="369" text-anchor="middle" font-size="15" font-weight="700" fill="var(--ink)">SW4</text>
+          <text x="280" y="387" text-anchor="middle" font-size="10" fill="var(--cyan)">10.255.0.4</text>
+        </g>
+
+        <!-- FULL status dots on each node -->
+        <g>
+          <circle cx="318" cy="50" r="3.5" fill="var(--full)"><animate attributeName="opacity" values="1;0.3;1" dur="2.2s" repeatCount="indefinite"/></circle>
+          <circle cx="130" cy="232" r="3.5" fill="var(--full)"><animate attributeName="opacity" values="1;0.3;1" dur="2.5s" repeatCount="indefinite"/></circle>
+          <circle cx="506" cy="232" r="3.5" fill="var(--full)"><animate attributeName="opacity" values="1;0.3;1" dur="2.8s" repeatCount="indefinite"/></circle>
+          <circle cx="318" cy="354" r="3.5" fill="var(--full)"><animate attributeName="opacity" values="1;0.3;1" dur="2.4s" repeatCount="indefinite"/></circle>
+        </g>
+      </svg>
+      <div class="topo-legend">
+        <span><i class="swatch" style="background:var(--copper)"></i> /24 transit link</span>
+        <span><i class="swatch" style="background:var(--full);width:8px;height:8px;border-radius:50%"></i> OSPF FULL</span>
+        <span><i class="swatch" style="background:var(--cyan)"></i> Loopback0 / router-id</span>
+      </div>
+    </div>
+
+    <div class="meta-card">
+      <table class="routers">
+        <thead><tr><th>SW</th><th>Router-ID</th><th>Area</th><th>Adj</th></tr></thead>
+        <tbody>
+          <tr><td>SW1</td><td class="rid">10.255.0.1/32</td><td>0</td><td><span class="full-pill">●&nbsp;3 FULL</span></td></tr>
+          <tr><td>SW2</td><td class="rid">10.255.0.2/32</td><td>0</td><td><span class="full-pill">●&nbsp;3 FULL</span></td></tr>
+          <tr><td>SW3</td><td class="rid">10.255.0.3/32</td><td>0</td><td><span class="full-pill">●&nbsp;3 FULL</span></td></tr>
+          <tr><td>SW4</td><td class="rid">10.255.0.4/32</td><td>0</td><td><span class="full-pill">●&nbsp;3 FULL</span></td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:13px;color:var(--muted);margin:18px 0 0;line-height:1.6">
+        Two protocols at once: <b style="color:var(--ink)">OSPF</b> (area 0) carries the transit
+        <code style="font-family:var(--mono);color:var(--copper);font-size:12px">/24</code>s, and a full mesh of
+        <b style="color:var(--ink)">eBGP</b> sessions
+        (<code style="font-family:var(--mono);color:var(--copper);font-size:12px">AS&nbsp;65001–65004</code>)
+        advertises the loopbacks — so every switch's
+        <code style="font-family:var(--mono);color:var(--copper);font-size:12px">show ip route</code> splits cleanly by source:
+      </p>
+      <div class="route-legend" style="justify-content:flex-start;margin-top:14px">
+        <span class="rl"><b class="c">C</b> local links + loopback</span>
+        <span class="rl"><b class="o">O</b> remote transit /24s</span>
+        <span class="rl"><b class="b">B</b> remote loopbacks</span>
+      </div>
+      <p style="font-size:11.5px;color:var(--faint);margin:16px 0 0;font-family:var(--mono);line-height:1.6">
+        ⓘ These are in-fabric 10.x addresses — safe to share. Real management IPs &amp; creds live only in your
+        git-ignored <span style="color:var(--muted)">inventory.local.yaml</span>.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ BUILD / FOLLOW ALONG ============ -->
+<section id="build" class="wrap reveal">
+  <div class="sec-head">
+    <span class="sec-num">03</span>
+    <div>
+      <h2>Build it — follow along</h2>
+      <p class="sec-sub">Steps 1–3 need <b style="color:var(--ink)">nothing but a laptop</b> (no lab, no GPU, no
+        Tailscale). Steps 4–6 add the chat UI. Hit the <b style="color:var(--copper)">copy</b> button on any block.</p>
+    </div>
+  </div>
+
+  <div class="steps">
+
+    <!-- step 1 -->
+    <div class="step">
+      <div class="step-head">
+        <div class="step-n">1</div>
+        <div class="step-title">Pull a small tool-calling model
+          <span class="sub">~2 GB · needs ~8 GB RAM · runs entirely on CPU</span></div>
+      </div>
+      <div class="code">
+        <button class="copy-btn">copy</button>
+<pre><span class="prompt">$ </span>ollama pull llama3.2</pre>
+      </div>
+    </div>
+
+    <!-- step 2 -->
+    <div class="step">
+      <div class="step-head">
+        <div class="step-n">2</div>
+        <div class="step-title">Install the project
+          <span class="sub">FastMCP server + the smoke-test harness, into a local venv</span></div>
+      </div>
+      <div class="code">
+        <button class="copy-btn">copy</button>
+<pre><span class="prompt">$ </span>uv venv <span class="cmt"># create the environment</span>
+<span class="prompt">$ </span>uv pip install -e .</pre>
+      </div>
+    </div>
+
+    <!-- step 3 -->
+    <div class="step">
+      <div class="step-head">
+        <div class="step-n">3</div>
+        <div class="step-title">Smoke-test the whole loop
+          <span class="sub">A local model calls a real tool against the built-in mock lab. This is the money shot.</span></div>
+      </div>
+      <div class="code">
+        <button class="copy-btn">copy</button>
+<pre><span class="var">LLM_MODEL</span>=llama3.2 uv run python scripts/local_llm_smoke.py <span class="str">"List the lab devices."</span></pre>
+      </div>
+      <div class="expect">
+        <span class="ico">✓ expect</span>
+        <span>The model calls <b>list_lab_devices</b> and answers <code>r1, r2, spine1</code> — all local,
+          no cloud, no network gear. Read-only tools only (no <code>configure_device</code>), so it can never write.</span>
+      </div>
+    </div>
+
+    <!-- step 4 -->
+    <div class="step">
+      <div class="step-head">
+        <div class="step-n">4</div>
+        <div class="step-title">Expose the tools through <span style="color:var(--cyan)">mcpo</span>
+          <span class="sub">Wraps the stdio MCP server as an OpenAPI tool server Open WebUI can call</span></div>
+      </div>
+      <div class="code">
+        <button class="copy-btn">copy</button>
+<pre><span class="var">PACKET_CODERS_INVENTORY</span>=<span class="var">&lt;REPO&gt;</span>/configs/inventory.mock.yaml \
+  uvx mcpo --port 8000 -- uv run --project <span class="var">&lt;REPO&gt;</span> packet-coders-mcp</pre>
+      </div>
+      <div class="expect">
+        <span class="ico">→ then</span>
+        <span>In Open WebUI: <b>Settings → Tools</b> → add tool server <code>http://localhost:8000</code>.
+          The six lab tools now show up to the model.</span>
+      </div>
+    </div>
+
+    <!-- step 5 -->
+    <div class="step">
+      <div class="step-head">
+        <div class="step-n">5</div>
+        <div class="step-title">Connect the Ollama backend
+          <span class="sub">Point Open WebUI at Ollama — local, or over Tailscale to a beefier box</span></div>
+      </div>
+      <div class="code">
+        <button class="copy-btn">copy</button>
+<pre><span class="cmt"># Open WebUI → Settings → Connections → Ollama API</span>
+<span class="cmt"># local:</span>     http://localhost:11434
+<span class="cmt"># tailnet:</span>   http://<span class="var">&lt;your-tailnet-host&gt;</span>:11434</pre>
+      </div>
+      <div class="expect">
+        <span class="ico">★ tip</span>
+        <span>Use a <b>tool-calling-capable</b> model — <b>Qwen3</b> is a strong pick; it selects tools
+          reliably and emits clean JSON. Keep smaller/Gemma models on read-only tools.</span>
+      </div>
+    </div>
+
+    <!-- step 6 -->
+    <div class="step">
+      <div class="step-head">
+        <div class="step-n">6</div>
+        <div class="step-title">Ask it something real
+          <span class="sub">Now chat. The model reaches for the tools on its own.</span></div>
+      </div>
+      <div class="code">
+        <button class="copy-btn">copy</button>
+<pre><span class="prompt">› </span>Are SW1's OSPF neighbors all FULL?
+<span class="out">  ↳ calls get_ospf_neighbors(device="SW1")</span>
+<span class="out">  ↳ "Yes — SW1 holds FULL with SW2, SW3, SW4 (3/3)."</span></pre>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ SCALE ============ -->
+<section id="scale" class="wrap reveal">
+  <div class="sec-head">
+    <span class="sec-num">04</span>
+    <div>
+      <h2>Scale up — one variable at a time</h2>
+      <p class="sec-sub">The 5-minute loop is the whole thing. Everything beyond it is changing
+        exactly one knob. Never more than one — that's how you keep failures debuggable.</p>
+    </div>
+  </div>
+  <div class="scale-grid">
+    <div class="scale-card">
+      <div class="want">Better tool-calling</div>
+      <code>ollama pull qwen3:8b
+LLM_MODEL=qwen3:8b</code>
+    </div>
+    <div class="scale-card">
+      <div class="want">A different / remote model</div>
+      <code>LLM_BASE_URL=http://&lt;host&gt;:11434/v1   # Ollama
+LLM_BASE_URL=http://&lt;host&gt;:8000/v1    # vLLM</code>
+    </div>
+    <div class="scale-card">
+      <div class="want">A real lab instead of mock</div>
+      <code>PACKET_CODERS_INVENTORY=./inventory.local.yaml</code>
+    </div>
+    <div class="scale-card">
+      <div class="want">Add an external connector</div>
+      <code>uvx mcpo --config ~/.config/...mcpo.config.json
+# adds /filesystem alongside /packet-coders</code>
+    </div>
+  </div>
+</section>
+
+<!-- ============ GOTCHAS ============ -->
+<section id="gotchas" class="wrap reveal">
+  <div class="sec-head">
+    <span class="sec-num">05</span>
+    <div>
+      <h2>The traps that cost me an evening</h2>
+      <p class="sec-sub">Every one of these looks like "the model is broken." None of them are. Show these on
+        screen — they're the difference between a demo that works and an hour of head-scratching.</p>
+    </div>
+  </div>
+
+  <div class="gotchas">
+
+    <div class="gotcha crit">
+      <h4><span class="badge">docker urls</span> Tool server ≠ model connection (Open WebUI in Docker)</h4>
+      <p>Open WebUI calls <b style="color:var(--ink)">tool servers from your browser</b>, but reaches the
+        <b style="color:var(--ink)">model backend from inside the container</b>. Same machine, <em>two different</em>
+        URLs — <code>host.docker.internal</code> for one, <code>localhost</code> for the other.</p>
+      <div class="compare">
+        <div class="ok"><h5>✓ Ollama — backend</h5><p>Settings → Connections · <code>http://host.docker.internal:11434</code></p></div>
+        <div class="ok"><h5>✓ mcpo tools — browser</h5><p>Settings → Integrations · <code>http://localhost:8000</code></p></div>
+      </div>
+      <div class="fix"><b>Native / pip Open WebUI (not Docker)?</b> Both are just <b>localhost</b>.</div>
+    </div>
+
+    <div class="gotcha">
+      <h4><span class="badge">function calling</span> Tools connected, but the model never calls them</h4>
+      <p>An Ollama model in Open WebUI ignores connected tools unless function calling is set to
+        <b style="color:var(--ink)">Native</b>. The tool server shows green; the model just never fires it.</p>
+      <div class="fix"><b>Fix:</b> model <b>Advanced Params → Function Calling → Native</b> (qwen3 supports it). Pair with the raised context window above.</div>
+    </div>
+
+    <div class="gotcha crit">
+      <h4><span class="badge">connection type</span> vLLM is <em>not</em> an Ollama connection</h4>
+      <p>Add Ollama under <b style="color:var(--ink)">Ollama API</b>; add vLLM under <b style="color:var(--ink)">OpenAI API</b>.
+        They are separate sections with separate master toggles. Put vLLM in the wrong one and Open WebUI polls
+        <code>/api/tags</code> (which vLLM doesn't serve) — the model silently never appears.</p>
+      <div class="compare">
+        <div class="ok"><h5>✓ Ollama</h5><p>section: <code>Ollama API</code> · URL <code>http://&lt;host&gt;:11434</code> · no <code>/v1</code></p></div>
+        <div class="no"><h5>✓ vLLM</h5><p>section: <code>OpenAI API</code> · URL <code>http://&lt;host&gt;:8000/v1</code> · key = any non-empty string</p></div>
+      </div>
+      <div class="fix"><b>If only Ollama models show:</b> the global <b>OpenAI API</b> toggle is off — flip it on, then hard-refresh.</div>
+    </div>
+
+    <div class="gotcha">
+      <h4><span class="badge">context window</span> "The model ignored the tools"</h4>
+      <p>Ollama defaults to a tiny context (~4K). The tool schemas plus verbose <code>show</code> output overflow it,
+        so the model never sees the tools and just makes something up.</p>
+      <div class="fix"><b>Fix:</b> raise it — <code>OLLAMA_CONTEXT_LENGTH=32768 ollama serve</code>, or bake
+        <code>num_ctx</code> into a Modelfile.</div>
+    </div>
+
+    <div class="gotcha">
+      <h4><span class="badge">vLLM tool parser</span> Tool calls come out as plain text</h4>
+      <p>Tool calling is <b style="color:var(--ink)">off by default</b> in vLLM. Without the right parser the model
+        emits tool calls as prose and nothing fires.</p>
+      <div class="code" style="border-radius:9px;border:1px solid var(--line);margin-top:12px">
+        <button class="copy-btn">copy</button>
+<pre>vllm serve <span class="var">&lt;qwen3-model&gt;</span> --enable-auto-tool-choice --tool-call-parser hermes</pre>
+      </div>
+      <div class="fix"><b>Note:</b> the parser is model-specific (Qwen-family commonly uses <code>hermes</code>) —
+        verify against current vLLM docs for your exact model.</div>
+    </div>
+
+    <div class="gotcha">
+      <h4><span class="badge">URL shape</span> Trailing <code>/models</code> on the base URL</h4>
+      <p>The OpenAI base URL ends in <code>/v1</code> — never <code>/v1/models</code>. Open WebUI appends
+        <code>/models</code> itself, so the extra one makes it query <code>/v1/models/models</code> → empty list.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ SAFETY ============ -->
+<section id="safety" class="wrap reveal">
+  <div class="sec-head">
+    <span class="sec-num">06</span>
+    <div>
+      <h2>Keep a human in the loop</h2>
+      <p class="sec-sub">This is a demo server, not a production change platform — but the guardrails are real,
+        and they're the part worth narrating on camera.</p>
+    </div>
+  </div>
+  <div class="safety">
+    <div class="guard"><span class="lk">🔒</span><span><b>Reads are open, writes are gated.</b> <code>send_command</code> blocks config &amp; destructive commands.</span></div>
+    <div class="guard"><span class="lk">🔒</span><span><b>Writes off by default.</b> <code>configure_device</code> isn't even exposed unless the server runs with <code>PACKET_CODERS_ALLOW_WRITES=true</code> — a connected model can't enable it.</span></div>
+    <div class="guard"><span class="lk">🔒</span><span><b>Hard-blocked lines.</b> <code>reload</code>, <code>erase</code>, <code>delete</code>, <code>write erase</code> never run.</span></div>
+    <div class="guard"><span class="lk">🔒</span><span><b>The model can't self-approve.</b> A real change needs a one-time code printed only to the server console — a human reads it and supplies it, even in an auto-executing UI.</span></div>
+    <div class="guard"><span class="lk">🔒</span><span><b>Backends stay on the tailnet.</b> An open Ollama/vLLM port is an unauthenticated model <em>and</em> tool surface.</span></div>
+    <div class="guard"><span class="lk">🔒</span><span><b>Secrets stay local.</b> Real IPs &amp; creds live only in git-ignored <code>inventory.local.yaml</code>.</span></div>
+  </div>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <div class="sec-head" style="margin-bottom:16px">
+    <span class="sec-num">▣</span>
+    <h2 style="font-size:22px">Suggested webinar flow</h2>
+  </div>
+  <ol class="flow-list">
+    <li>Start in <b>mock mode</b> — list devices, no lab required.</li>
+    <li>Show <b>server.py</b>: how <b>@mcp.tool</b> turns plain Python into MCP tools.</li>
+    <li>Run <b>get_ospf_neighbors</b> &amp; <b>get_bgp_summary</b> against the mock lab.</li>
+    <li>Switch the inventory to the <b>EVE-NG four-switch mesh</b> — same tools, real adjacencies.</li>
+    <li>Demo <b>configure_device</b> (server with <code>PACKET_CODERS_ALLOW_WRITES=true</code>): the model proposes, you read the one-time code off the server console to approve — add &amp; remove a demo loopback, watch it ride <b>eBGP</b>.</li>
+    <li>Repeat the whole thing driven by a <b>local Qwen3 model</b> — same tools, zero cloud API.</li>
+  </ol>
+  <div class="foot-tag">
+    <span class="status-dot"></span>
+    packet-coders · from chat to mcp · runs fully local
+  </div>
+</footer>
+
+<!-- ============ AUDIENCE DECK (presenter mode) ============ -->
+<div id="deck" aria-hidden="true">
+
+  <!-- 1 · title -->
+  <section class="slide">
+    <div class="inner">
+      <div class="s-kicker">A network engineer's path through AI</div>
+      <h1 class="s-title">From Chat <span class="cy">→</span><br>to <span class="ac">MCP</span>.</h1>
+      <p class="s-lead wide">A fully local AI assistant that can actually read your network —
+        driven by <b>Ollama</b>, wired to a live lab through <b>MCP tools</b>.</p>
+    </div>
+  </section>
+
+  <!-- 2 · the one idea -->
+  <section class="slide">
+    <div class="inner">
+      <div class="s-kicker">The one idea</div>
+      <h2 class="s-title">The model never<br>speaks <span class="ac">MCP</span>.</h2>
+      <p class="s-lead wide">A <b>host</b> runs the tool-calling loop and connects typed tools
+        to whatever model you point it at. So you can swap the model freely.</p>
+    </div>
+  </section>
+
+  <!-- 3 · architecture -->
+  <section class="slide">
+    <div class="inner">
+      <div class="s-kicker">How it fits together</div>
+      <h2 class="s-title sm">Host · Tools · Model</h2>
+      <ul class="s-points">
+        <li><span class="m">01</span><span><b>Open WebUI</b> — the host &amp; chat UI</span></li>
+        <li><span class="m">02</span><span><span class="cy">mcpo</span> → exposes the lab tools</span></li>
+        <li><span class="m">03</span><span><b>Ollama</b> or <b>vLLM</b> → serves the model</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 4 · the lab -->
+  <section class="slide">
+    <div class="inner">
+      <div class="s-kicker">The lab it reads</div>
+      <h2 class="s-title sm">4× Arista EOS · <span class="cy">OSPF</span> + <span class="ac">eBGP</span> full mesh</h2>
+      <div class="lab-stage">
+        <svg viewBox="0 0 560 420" role="img" aria-label="Four-switch full mesh topology">
+          <defs>
+            <filter id="glowD" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <radialGradient id="nodeGD" cx="50%" cy="35%" r="70%">
+              <stop offset="0%" stop-color="#1c2937"/><stop offset="100%" stop-color="#0d141d"/>
+            </radialGradient>
+          </defs>
+          <g stroke="var(--copper-dim)" stroke-width="2" opacity="0.9">
+            <line x1="280" y1="74" x2="92" y2="250"/><line x1="280" y1="74" x2="468" y2="250"/>
+            <line x1="280" y1="74" x2="280" y2="372"/><line x1="92" y1="250" x2="468" y2="250"/>
+            <line x1="92" y1="250" x2="280" y2="372"/><line x1="468" y1="250" x2="280" y2="372"/>
+          </g>
+          <g stroke="var(--copper)" stroke-width="2" stroke-dasharray="4 90" opacity="0.85">
+            <line x1="280" y1="74" x2="92" y2="250"><animate attributeName="stroke-dashoffset" from="0" to="-94" dur="2.6s" repeatCount="indefinite"/></line>
+            <line x1="280" y1="74" x2="468" y2="250"><animate attributeName="stroke-dashoffset" from="0" to="-94" dur="2.9s" repeatCount="indefinite"/></line>
+            <line x1="280" y1="74" x2="280" y2="372"><animate attributeName="stroke-dashoffset" from="0" to="-94" dur="3.2s" repeatCount="indefinite"/></line>
+            <line x1="92" y1="250" x2="468" y2="250"><animate attributeName="stroke-dashoffset" from="0" to="-94" dur="2.4s" repeatCount="indefinite"/></line>
+            <line x1="92" y1="250" x2="280" y2="372"><animate attributeName="stroke-dashoffset" from="0" to="-94" dur="3.0s" repeatCount="indefinite"/></line>
+            <line x1="468" y1="250" x2="280" y2="372"><animate attributeName="stroke-dashoffset" from="0" to="-94" dur="2.7s" repeatCount="indefinite"/></line>
+          </g>
+          <g font-family="IBM Plex Mono, monospace">
+            <g filter="url(#glowD)"><rect x="232" y="40" width="96" height="56" rx="11" fill="url(#nodeGD)" stroke="var(--copper)" stroke-width="1.4"/></g>
+            <text x="280" y="65" text-anchor="middle" font-size="16" font-weight="700" fill="var(--ink)">SW1</text>
+            <text x="280" y="83" text-anchor="middle" font-size="10" fill="var(--cyan)">10.255.0.1</text>
+            <g filter="url(#glowD)"><rect x="44" y="222" width="96" height="56" rx="11" fill="url(#nodeGD)" stroke="var(--copper)" stroke-width="1.4"/></g>
+            <text x="92" y="247" text-anchor="middle" font-size="16" font-weight="700" fill="var(--ink)">SW2</text>
+            <text x="92" y="265" text-anchor="middle" font-size="10" fill="var(--cyan)">10.255.0.2</text>
+            <g filter="url(#glowD)"><rect x="420" y="222" width="96" height="56" rx="11" fill="url(#nodeGD)" stroke="var(--copper)" stroke-width="1.4"/></g>
+            <text x="468" y="247" text-anchor="middle" font-size="16" font-weight="700" fill="var(--ink)">SW3</text>
+            <text x="468" y="265" text-anchor="middle" font-size="10" fill="var(--cyan)">10.255.0.3</text>
+            <g filter="url(#glowD)"><rect x="232" y="344" width="96" height="56" rx="11" fill="url(#nodeGD)" stroke="var(--copper)" stroke-width="1.4"/></g>
+            <text x="280" y="369" text-anchor="middle" font-size="16" font-weight="700" fill="var(--ink)">SW4</text>
+            <text x="280" y="387" text-anchor="middle" font-size="10" fill="var(--cyan)">10.255.0.4</text>
+          </g>
+          <g>
+            <circle cx="318" cy="50" r="3.5" fill="var(--full)"><animate attributeName="opacity" values="1;0.3;1" dur="2.2s" repeatCount="indefinite"/></circle>
+            <circle cx="130" cy="232" r="3.5" fill="var(--full)"><animate attributeName="opacity" values="1;0.3;1" dur="2.5s" repeatCount="indefinite"/></circle>
+            <circle cx="506" cy="232" r="3.5" fill="var(--full)"><animate attributeName="opacity" values="1;0.3;1" dur="2.8s" repeatCount="indefinite"/></circle>
+            <circle cx="318" cy="354" r="3.5" fill="var(--full)"><animate attributeName="opacity" values="1;0.3;1" dur="2.4s" repeatCount="indefinite"/></circle>
+          </g>
+        </svg>
+      </div>
+      <div class="route-legend">
+        <span class="rl"><b class="c">C</b> local links + loopback</span>
+        <span class="rl"><b class="o">O</b> remote transit /24s · <em>OSPF</em></span>
+        <span class="rl"><b class="b">B</b> remote loopbacks · <em>eBGP</em></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · the six tools -->
+  <section class="slide">
+    <div class="inner">
+      <div class="s-kicker">Six typed tools</div>
+      <h2 class="s-title sm">Just Python functions<br>with good docstrings</h2>
+      <ul class="s-points two mono">
+        <li><span class="m">›</span> list_lab_devices</li>
+        <li><span class="m">›</span> get_ospf_neighbors</li>
+        <li><span class="m">›</span> send_command</li>
+        <li><span class="m">›</span> get_bgp_summary</li>
+        <li><span class="m">›</span> run_health_check</li>
+        <li><span class="m ac">›</span> <span class="cy">configure_device</span> &nbsp;(gated)</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 6 · build in 5 min -->
+  <section class="slide">
+    <div class="inner">
+      <div class="s-kicker">Build it · ~5 minutes · one laptop</div>
+      <h2 class="s-title sm">Three commands</h2>
+      <div class="s-cmds">
+        <div class="s-cmd"><span class="p">$ </span>ollama pull llama3.2</div>
+        <div class="s-cmd"><span class="p">$ </span>uv venv <span class="c"># then</span> uv pip install -e .</div>
+        <div class="s-cmd"><span class="v">LLM_MODEL</span>=llama3.2 uv run python scripts/local_llm_smoke.py <span class="s">"List the lab devices."</span></div>
+      </div>
+      <p class="s-note"><span class="ok">✓</span> &nbsp;The model calls the tool and answers <span style="color:var(--copper)">r1, r2, spine1</span> — fully local.</p>
+    </div>
+  </section>
+
+  <!-- 7 · then just ask -->
+  <section class="slide">
+    <div class="inner">
+      <div class="s-kicker">Then just ask</div>
+      <h2 class="s-title sm">It reaches for the<br>tools on its own</h2>
+      <div class="s-cmds">
+        <div class="s-cmd"><span class="p">› </span>Are SW1's OSPF neighbors all FULL?
+<span class="c">  ↳ calls get_ospf_neighbors(device="SW1")</span>
+<span class="s">  ↳ "Yes — FULL with SW2, SW3, SW4 (3/3)."</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 · scale up -->
+  <section class="slide">
+    <div class="inner">
+      <div class="s-kicker">Scale up</div>
+      <h2 class="s-title sm">Change <span class="ac">one</span> knob at a time</h2>
+      <ul class="s-points">
+        <li><span class="m">›</span><span>Better tool-calling &nbsp;→&nbsp; <span class="cy">a bigger Qwen3</span></span></li>
+        <li><span class="m">›</span><span>A remote model &nbsp;→&nbsp; <span class="cy">change one URL</span></span></li>
+        <li><span class="m">›</span><span>A real lab &nbsp;→&nbsp; <span class="cy">swap the inventory file</span></span></li>
+        <li><span class="m">›</span><span>More reach &nbsp;→&nbsp; <span class="cy">add a connector</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 9 · gotchas -->
+  <section class="slide">
+    <div class="inner">
+      <div class="s-kicker">The traps</div>
+      <h2 class="s-title sm">Looks broken — isn't</h2>
+      <ul class="s-points">
+        <li><span class="m">!</span><span>vLLM is an <span class="cy">OpenAI</span> connection — <b>not</b> Ollama</span></li>
+        <li><span class="m">!</span><span>Raise Ollama's context window <span style="color:var(--muted)">(defaults ~4K)</span></span></li>
+        <li><span class="m">!</span><span>Tools connected but silent? <span class="cy">Function Calling → Native</span></span></li>
+        <li><span class="m">!</span><span>Docker: tools = <span class="cy">localhost</span>, Ollama = <span class="ac">host.docker.internal</span></span></li>
+        <li><span class="m">!</span><span>vLLM: enable tool calling + the right parser</span></li>
+        <li><span class="m">!</span><span>Base URL ends in <span class="cy">/v1</span> — never <span class="cy">/v1/models</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 10 · close -->
+  <section class="slide">
+    <div class="inner">
+      <div class="s-kicker">Runs fully local</div>
+      <h2 class="s-title">No cloud API.<br>No secrets <span class="ac">leave the box</span>.</h2>
+      <p class="s-lead wide">Reads are open. Writes are gated. A human stays in the loop.</p>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  // Copy-to-clipboard for every code block
+  document.querySelectorAll('.copy-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var pre = btn.parentElement.querySelector('pre');
+      var text = pre.innerText.replace(/^[›$]\s/gm, '').trim();
+      navigator.clipboard.writeText(text).then(function(){
+        btn.textContent = 'copied ✓';
+        btn.classList.add('done');
+        setTimeout(function(){ btn.textContent = 'copy'; btn.classList.remove('done'); }, 1600);
+      }).catch(function(){
+        btn.textContent = 'select-all'; setTimeout(function(){ btn.textContent='copy'; },1600);
+      });
+    });
+  });
+
+  // Scroll reveal
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
+
+  // Active-section highlight in topbar
+  var navLinks = Array.from(document.querySelectorAll('.topbar nav a'));
+  var spy = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        navLinks.forEach(function(a){
+          a.style.color = a.getAttribute('href') === '#'+e.target.id ? 'var(--copper)' : '';
+        });
+      }
+    });
+  }, { rootMargin: '-45% 0px -50% 0px' });
+  document.querySelectorAll('section[id]').forEach(function(s){ spy.observe(s); });
+
+  // ============ Presenter / clean audience deck ============
+  (function(){
+    var deck = document.getElementById('deck');
+    var slides = deck ? Array.from(deck.querySelectorAll('.slide')) : [];
+    var idx = 0, active = false, chrome = null, prog = null;
+    var btn = document.getElementById('presentBtn');
+
+    function buildChrome(){
+      prog = document.createElement('div');
+      prog.className = 'present-progress';
+      document.body.appendChild(prog);
+
+      chrome = document.createElement('div');
+      chrome.className = 'present-chrome';
+      chrome.innerHTML =
+        '<div class="pc-btn" data-act="prev" title="Previous (←)">‹</div>' +
+        '<div class="counter"><b id="pcCur">1</b> / ' + slides.length + '</div>' +
+        '<div class="pc-btn" data-act="next" title="Next (→)">›</div>' +
+        '<div class="pc-btn" data-act="exit" title="Exit (Esc)">✕</div>';
+      document.body.appendChild(chrome);
+      chrome.addEventListener('click', function(e){
+        var a = e.target.getAttribute('data-act');
+        if(a === 'next') go(idx + 1);
+        else if(a === 'prev') go(idx - 1);
+        else if(a === 'exit') exit();
+      });
+    }
+
+    function show(i){
+      slides.forEach(function(s, n){ s.classList.toggle('active', n === i); });
+      var cur = document.getElementById('pcCur'); if(cur) cur.textContent = (i + 1);
+      if(prog) prog.style.width = (slides.length > 1 ? (i / (slides.length - 1) * 100) : 100) + '%';
+      if(slides[i]) slides[i].scrollTop = 0;
+    }
+    function go(i){ idx = Math.max(0, Math.min(slides.length - 1, i)); show(idx); }
+
+    function enter(){
+      if(!slides.length) return;
+      if(!chrome) buildChrome();
+      active = true;
+      document.body.classList.add('presenting');
+      go(idx);
+      if(btn) btn.textContent = '■ Exit';
+    }
+    function exit(){
+      active = false;
+      document.body.classList.remove('presenting');
+      if(btn) btn.textContent = '▶ Present';
+    }
+    function toggle(){ active ? exit() : enter(); }
+
+    if(btn) btn.addEventListener('click', toggle);
+
+    document.addEventListener('keydown', function(e){
+      var typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
+      if(!active){
+        if((e.key === 'p' || e.key === 'P') && !typing) enter();
+        return;
+      }
+      switch(e.key){
+        case 'ArrowRight': case 'PageDown': case ' ': case 'j':
+          e.preventDefault(); go(idx + 1); break;
+        case 'ArrowLeft': case 'PageUp': case 'k':
+          e.preventDefault(); go(idx - 1); break;
+        case 'Home': e.preventDefault(); go(0); break;
+        case 'End':  e.preventDefault(); go(slides.length - 1); break;
+        case 'Escape': case 'p': case 'P': e.preventDefault(); exit(); break;
+      }
+    });
+  })();
+</script>
+</body>
+</html>
