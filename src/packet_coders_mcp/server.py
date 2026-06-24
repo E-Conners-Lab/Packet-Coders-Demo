@@ -81,7 +81,8 @@ async def send_command(device_name: str, command: str) -> dict[str, Any]:
     """Run one read-only show/display command on a lab device.
 
     Args:
-        device_name: Inventory name, such as r1 or spine1.
+        device_name: Inventory device name (case-insensitive). Call list_lab_devices
+            first to get the exact names — do not guess.
         command: A read-only show/display command. Configuration commands are blocked.
     """
     # netmiko's SSH call is blocking; run it in a worker thread so the event loop
@@ -97,7 +98,8 @@ async def run_health_check(device_name: str | None = None) -> dict[str, Any]:
     """Run basic health checks against one device, or all devices when omitted.
 
     Args:
-        device_name: Optional inventory device name. If omitted, checks the whole lab.
+        device_name: Optional inventory device name (case-insensitive). If omitted, checks
+            the whole lab. Call list_lab_devices first to get exact names — do not guess.
     """
     # LabService.run_health_check fans out across devices concurrently (one thread per
     # device), so a whole-lab check is N parallel logins rather than N serial ones.
@@ -112,7 +114,8 @@ async def get_ospf_neighbors(device_name: str) -> dict[str, Any]:
     """Read OSPF neighbors from a lab device using a platform-appropriate command.
 
     Args:
-        device_name: Inventory name, such as r1 or spine1.
+        device_name: Inventory device name (case-insensitive). Call list_lab_devices
+            first to get the exact names — do not guess.
     """
     return await asyncio.to_thread(get_lab_service().get_ospf_neighbors, device_name)
 
@@ -125,7 +128,8 @@ async def get_bgp_summary(device_name: str) -> dict[str, Any]:
     """Read BGP summary from a lab device using a platform-appropriate command.
 
     Args:
-        device_name: Inventory name, such as r1 or spine1.
+        device_name: Inventory device name (case-insensitive). Call list_lab_devices
+            first to get the exact names — do not guess.
     """
     return await asyncio.to_thread(get_lab_service().get_bgp_summary, device_name)
 
@@ -147,7 +151,8 @@ async def configure_device(
     read-only server where this tool is not present at all.
 
     Args:
-        device_name: Inventory name, such as r1 or spine1.
+        device_name: Inventory device name (case-insensitive). Call list_lab_devices
+            first to get the exact names — do not guess.
         commands: Config lines only. Do not include configure terminal or end.
         dry_run: Legacy preview flag; the confirm_code step now governs sending.
         confirm: Legacy flag; superseded by confirm_code.

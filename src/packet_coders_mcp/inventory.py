@@ -36,11 +36,21 @@ class Inventory:
     devices: dict[str, Device]
 
     def get(self, name: str) -> Device:
-        try:
-            return self.devices[name]
-        except KeyError as exc:
-            known = ", ".join(sorted(self.devices)) or "none"
-            raise ValueError(f"Unknown device {name!r}. Known devices: {known}") from exc
+        # Exact match first (fast path), then a case-insensitive fallback: lab/EVE-NG/CML
+        # node names are inconsistently cased, and tool-callers — especially local models —
+        # routinely send "SW1" when the inventory says "sw1". The returned Device keeps its
+        # canonical name, so responses always echo the inventory's spelling.
+        device = self.devices.get(name)
+        if device is not None:
+            return device
+
+        lowered = name.lower()
+        for device in self.devices.values():
+            if device.name.lower() == lowered:
+                return device
+
+        known = ", ".join(sorted(self.devices)) or "none"
+        raise ValueError(f"Unknown device {name!r}. Known devices: {known}")
 
     def public_dict(self) -> dict[str, Any]:
         return {"devices": {name: device.public_dict() for name, device in self.devices.items()}}
