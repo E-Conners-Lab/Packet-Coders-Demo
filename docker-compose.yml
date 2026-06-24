@@ -34,10 +34,13 @@ services:
   mcpo:
     # Pull the pre-built, end-to-end-tested image by default — no local build needed.
     image: ghcr.io/e-conners-lab/packet-coders-mcpo:v1
-    # Developers can rebuild from source instead:  docker compose build mcpo
+    # Always pull the known-good image on `up` (don't silently build a local one).
+    pull_policy: always
+    # Developers can still rebuild from source:  docker compose build mcpo
     build: .
     ports:
-      - "8000:8000"
+      # Host port is overridable (set MCPO_PORT in .env) for machines where 8000 is taken.
+      - "${MCPO_PORT:-8000}:8000"
     environment:
       - PACKET_CODERS_INVENTORY=${PACKET_CODERS_INVENTORY:-/app/configs/inventory.mock.yaml}
       - PACKET_CODERS_ALLOW_WRITES=${PACKET_CODERS_ALLOW_WRITES:-true}

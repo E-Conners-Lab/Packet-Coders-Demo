@@ -35,10 +35,32 @@ available but **gated**: each one prints a one-time confirmation code to the ser
 
 | Want… | Command |
 | --- | --- |
-| Faster model on a Mac (host Ollama, Metal GPU) | `make up-host` |
+| Faster model on a Mac (host Ollama, Metal GPU) | `make up-host` — uses your **host** Ollama and **does not auto-pull a model**: run `ollama pull qwen3:8b` first (or use one you already have) |
+| Change the port, inventory, or model | copy `.env.example` → `.env` and edit (see [Configuration](#configuration-env)) |
+| The real EVE-NG lab | drop a `configs/inventory.local.yaml` and point `PACKET_CODERS_INVENTORY` at it in `.env` (see [EVE-NG Setup](#eve-ng-setup)) |
 | Read-only (hide the write tool entirely) | `make readonly` |
-| The real EVE-NG lab | uncomment the inventory mount in `docker-compose.yml`, then `docker compose up` |
 | Stop everything | `make down` |
+
+> **Which command pulls the model?** Plain `docker compose up` runs a one-shot `model-init`
+> that pulls `qwen3:8b` into the **bundled** Ollama (a Docker volume). `make up-host` skips
+> that entirely and uses your **host** Ollama — so pull the model there yourself.
+
+### Configuration (.env)
+
+All of the above are tunable through a single git-ignored `.env` file that Docker Compose and
+`make` read automatically from the repo root. You only need it to change a default:
+
+```bash
+cp .env.example .env   # then edit
+```
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `MCPO_PORT` | `8000` | Host port for the mcpo tool server. Change it if `8000` is already in use (then add `http://localhost:<port>` in Open WebUI). |
+| `PACKET_CODERS_INVENTORY` | mock lab | Path **inside the container** to the inventory. Point at `/app/configs/inventory.local.yaml` for a real lab. |
+| `PACKET_CODERS_ALLOW_WRITES` | `true` | `false` hides `configure_device` entirely (read-only). |
+| `OLLAMA_BASE_URL` | bundled Ollama | Model backend. `make up-host` sets this to your host Ollama for you. |
+| `LLM_MODEL` | `qwen3:8b` | Model the **bundled** Ollama pulls on `docker compose up`. (Ignored by `make up-host`.) |
 
 Prefer no Docker? Run it natively in 5 minutes instead:
 
@@ -461,14 +483,31 @@ Common `platform` values:
 ## EVE-NG Setup
 
 1. Put your lab devices on a management network reachable from the machine running this server.
-2. Enable SSH on the nodes.
-3. Copy `configs/inventory.eve-ng.example.yaml` to `inventory.local.yaml`.
-4. Replace the `host`, `username`, `password`, and `platform` values.
-5. Start the server with:
+2. Enable SSH on the nodes (password login is fine — the driver also handles OpenSSH
+   `keyboard-interactive`, which is how many Linux-based nodes deliver password auth).
+3. Copy the example to a git-ignored local file and fill in real `host`, `username`,
+   `password`, and `platform` values:
+
+   ```bash
+   cp configs/inventory.eve-ng.example.yaml configs/inventory.local.yaml
+   ```
+
+**Docker (the quickstart stack):** `configs/` is already mounted into the container, so just
+point the server at your file via `.env` and restart mcpo:
 
 ```bash
-PACKET_CODERS_INVENTORY=inventory.local.yaml uv run packet-coders-mcp
+echo 'PACKET_CODERS_INVENTORY=/app/configs/inventory.local.yaml' >> .env
+docker compose up -d --force-recreate mcpo   # (or: make up-host)
 ```
+
+**Native (no Docker):**
+
+```bash
+PACKET_CODERS_INVENTORY=configs/inventory.local.yaml uv run packet-coders-mcp
+```
+
+Verify it picked up the real lab with `list_lab_devices` — the devices should show
+`transport: ssh` and your real hosts (not the `mock-*` names).
 
 ## Keeping the lab private
 
@@ -522,6 +561,23 @@ This is a demo server, not a production change platform. Its guardrails, stronge
    Open WebUI / Ollama path write-disabled so the auto-executing agent can never push config.
 7. Optional: repeat the demo driven by a local Qwen3 model to show the same tools with no
    cloud API.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Open WebUI tool server shows a red "connection" error; `curl localhost:8000/openapi.json` fails | Host port `8000` is already in use by another service/container | Set `MCPO_PORT=<free port>` in `.env`, `docker compose up -d mcpo`, and add `http://localhost:<port>` in Open WebUI. Check the clash with `lsof -nP -iTCP:8000 -sTCP:LISTEN`. |
+| `http://localhost:<port>` shows `{"detail":"Not Found"}` in a browser | Expected — mcpo has no root page | Use `/docs` to browse, or paste the bare base URL into Open WebUI (it appends `/openapi.json`). |
+| `docker compose up` rebuilds mcpo instead of pulling | (Fixed in this repo) both `image:` and `build:` were set | `pull_policy: always` now pulls the tested image; `docker compose build mcpo` still rebuilds on demand. |
+| Tools return `r1`/`r2`/`spine1` (`transport: mock`) instead of your gear | Server is still on the **mock** inventory (the default) | Set `PACKET_CODERS_INVENTORY=/app/configs/inventory.local.yaml` in `.env` and `--force-recreate` mcpo. See [EVE-NG Setup](#eve-ng-setup). |
+| `qwen3:8b` never downloaded | You used `make up-host`, which uses your **host** Ollama and pulls nothing | `ollama pull qwen3:8b` on the host (or pick a tool-calling model you already have). Only plain `docker compose up` auto-pulls (into the bundled Ollama). |
+| SSH `Authentication to device failed … Bad authentication type` | Wrong username/password (most common), **not** the auth method — netmiko/paramiko fall back to `keyboard-interactive` automatically | Fix the creds in `configs/inventory.local.yaml`. Confirm reachability + port first: from the container, `python -c "import socket; socket.create_connection(('<ip>',22),3)"`. |
+| Model "ignores" the connected tools | Function Calling isn't Native, or context window too small | Model → Advanced Params → **Function Calling → Native**; raise Ollama context (`OLLAMA_CONTEXT_LENGTH=32768`). See [Open WebUI setup](#open-webui-setup). |
+| Edited `.env`/inventory but nothing changed | The server reads inventory at **startup** | Recreate the container: `docker compose up -d --force-recreate mcpo`. A bind-mount updates the file, but the process must restart to reload it. |
+
+> **Run only one of** `docker compose up` **or** `make up-host` **at a time.** They share the
+> same Compose project, so the second just reconciles the first — but mixing them mid-debug is
+> a good way to confuse yourself about which Ollama (bundled vs host) is actually serving.
 
 ## Development Checks
 
