@@ -16,12 +16,15 @@ ALLOW_WRITES_ENV = "PACKET_CODERS_ALLOW_WRITES"
 
 
 def _writes_enabled() -> bool:
-    """Writes are OFF unless a human explicitly enables them out-of-band.
+    """Expose configure_device (behind the confirmation gate) unless explicitly read-only.
 
-    A connected model cannot flip this — it is read from the process environment,
-    not from any tool argument, so an agent cannot self-authorize a real change.
+    Default is on: the tool is registered, but every real change still requires the
+    out-of-band confirmation code, so a connected model cannot self-authorize one. Set
+    PACKET_CODERS_ALLOW_WRITES to a false-y value (false/0/no/off) for a strictly
+    read-only server that does not expose the tool at all.
     """
-    return os.environ.get(ALLOW_WRITES_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
+    value = os.environ.get(ALLOW_WRITES_ENV, "true").strip().lower()
+    return value not in {"0", "false", "no", "off"}
 
 mcp = FastMCP(
     name="Packet Coders Lab",
@@ -117,8 +120,8 @@ def configure_device(
     confirmation code to the SERVER CONSOLE only (never in this response). Step 2 - a
     human reads that code off the console and you call again with the same commands and
     confirm_code set to it. Only then is config sent. The model never sees the code, so it
-    cannot self-approve. Requires the server to run with PACKET_CODERS_ALLOW_WRITES=true;
-    otherwise this tool is not exposed at all.
+    cannot self-approve. Exposed by default; set PACKET_CODERS_ALLOW_WRITES=false for a
+    read-only server where this tool is not present at all.
 
     Args:
         device_name: Inventory name, such as r1 or spine1.
@@ -132,11 +135,9 @@ def configure_device(
     )
 
 
-# Register the only write tool ONLY when writes are enabled out-of-band. With writes
-# disabled (the default), configure_device is never advertised, so an auto-executing
-# host (e.g. Open WebUI) never sees it and there is nothing to filter in the UI. Launch
-# with PACKET_CODERS_ALLOW_WRITES=true (e.g. from Claude Desktop, which confirms each
-# tool call) to expose it.
+# configure_device is exposed by default, but always behind the out-of-band confirmation
+# gate (a model can't self-approve). Launch with PACKET_CODERS_ALLOW_WRITES=false for a
+# strictly read-only server, where the tool is never advertised at all.
 if _writes_enabled():
     configure_device = mcp.tool(
         annotations={
