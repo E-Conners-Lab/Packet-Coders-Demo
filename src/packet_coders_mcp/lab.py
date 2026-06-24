@@ -17,6 +17,12 @@ from packet_coders_mcp.safety import assert_safe_config_lines, assert_safe_show_
 class LabService:
     inventory: Inventory
     allow_writes: bool = False
+    # When True (default), a real change needs the out-of-band confirmation code printed to
+    # the console — right for auto-executing hosts (Open WebUI) where a model could otherwise
+    # self-approve. Set False for hosts that confirm every tool call themselves (Claude
+    # Desktop / Claude Code): the human approval there is the gate, so apply on a non-dry-run
+    # call without a code.
+    require_confirm_code: bool = True
     _pending_codes: dict[tuple[str, tuple[str, ...]], str] = field(
         default_factory=dict, init=False, repr=False
     )
@@ -104,7 +110,33 @@ class LabService:
                 ),
             }
 
-        # Writes are enabled, but a real send still needs a one-time confirmation code that is
+        # Client-gated mode: the host confirms every tool call (Claude Desktop / Claude Code),
+        # so that human approval IS the gate. No out-of-band code — apply when the caller asks
+        # to (dry_run=False or confirm=True); otherwise return a preview.
+        if not self.require_confirm_code:
+            if dry_run and not confirm:
+                return {
+                    "device": device.name,
+                    "dry_run": True,
+                    "applied": False,
+                    "writes_enabled": True,
+                    "would_send": commands,
+                    "message": (
+                        "Preview only (dry_run). Call again with dry_run=false to apply; "
+                        "your client will prompt you to approve the change before it is sent."
+                    ),
+                }
+            output = driver_for_device(device).send_config(device, commands)
+            return {
+                "device": device.name,
+                "dry_run": False,
+                "applied": True,
+                "writes_enabled": True,
+                "sent": commands,
+                "output": output,
+            }
+
+        # Code-gated mode (default): a real send needs a one-time confirmation code that is
         # printed only to the server console (stderr) — never returned to the model. A human
         # reads it off the console and supplies it, so the model cannot self-approve a change.
         key = (device_name, tuple(commands))

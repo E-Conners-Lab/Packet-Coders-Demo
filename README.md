@@ -540,7 +540,14 @@ This is a demo server, not a production change platform. Its guardrails, stronge
   is **not even advertised** — an auto-executing host never sees it. That flag is read from the
   process environment, so **a connected model cannot change it.**
 - **Or use a host that confirms each tool call.** Claude Desktop / Claude Code additionally prompt
-  you to approve every tool call — a second, host-level way to keep a human in the loop.
+  you to approve every tool call — a second, host-level way to keep a human in the loop. With such
+  a host you can make *its* approval the gate and skip the code: set
+  `PACKET_CODERS_REQUIRE_CONFIRM_CODE=false` **in that client's own server config** (e.g. the `env`
+  block of its `claude_desktop_config.json` entry). Then `configure_device` applies on a non-dry-run
+  call, and the client's "approve this tool call?" prompt is the human gate. Leave it at the default
+  (`true`) for auto-executing hosts like Open WebUI, where the out-of-band code is what stops a model
+  from self-approving. The flag is read from the process environment, so a connected model can't
+  change it.
 - `send_command` blocks obvious config and destructive commands.
 - Dangerous config lines such as `reload`, `erase`, `delete`, and `write erase` are blocked — but
   ordinary `no …` lines (e.g. removing a loopback) are **not**, which is why the confirmation-code

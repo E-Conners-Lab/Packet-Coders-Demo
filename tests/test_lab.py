@@ -146,3 +146,41 @@ def test_confirm_code_never_appears_in_response(lab: LabService) -> None:
 
     # The model must never be able to read the code out of the tool response.
     assert code not in json.dumps(pending)
+
+
+def test_client_gated_mode_previews_on_dry_run(lab: LabService) -> None:
+    # require_confirm_code=False: a dry-run still only previews — no code, no send.
+    svc = LabService(lab.inventory, allow_writes=True, require_confirm_code=False)
+
+    result = svc.configure_device("r1", ["interface Loopback100"])
+
+    assert result["applied"] is False
+    assert result["would_send"] == ["interface Loopback100"]
+    assert "sent" not in result
+    assert result.get("pending_confirmation") is None
+    assert svc._pending_codes == {}  # no out-of-band code issued in this mode
+
+
+def test_client_gated_mode_applies_without_code(lab: LabService) -> None:
+    # require_confirm_code=False: a non-dry-run call applies directly (the host's
+    # per-call approval is the human gate). No confirm_code needed.
+    svc = LabService(lab.inventory, allow_writes=True, require_confirm_code=False)
+    commands = ["interface Loopback100", "description MCP demo"]
+
+    applied = svc.configure_device("r1", commands, dry_run=False)
+
+    assert applied["applied"] is True
+    assert applied["sent"] == commands
+    assert "output" in applied
+    assert svc._pending_codes == {}
+
+
+def test_client_gated_mode_still_respects_read_only(lab: LabService) -> None:
+    # allow_writes=False wins even in client-gated mode: nothing is ever sent.
+    svc = LabService(lab.inventory, allow_writes=False, require_confirm_code=False)
+
+    result = svc.configure_device("r1", ["interface Loopback100"], dry_run=False)
+
+    assert result["applied"] is False
+    assert result["writes_enabled"] is False
+    assert "sent" not in result

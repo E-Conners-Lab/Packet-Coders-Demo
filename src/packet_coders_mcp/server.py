@@ -13,6 +13,7 @@ from packet_coders_mcp.lab import LabService
 DEFAULT_INVENTORY = Path(__file__).resolve().parents[2] / "configs" / "inventory.mock.yaml"
 INVENTORY_ENV = "PACKET_CODERS_INVENTORY"
 ALLOW_WRITES_ENV = "PACKET_CODERS_ALLOW_WRITES"
+REQUIRE_CONFIRM_CODE_ENV = "PACKET_CODERS_REQUIRE_CONFIRM_CODE"
 
 
 def _writes_enabled() -> bool:
@@ -25,6 +26,18 @@ def _writes_enabled() -> bool:
     """
     value = os.environ.get(ALLOW_WRITES_ENV, "true").strip().lower()
     return value not in {"0", "false", "no", "off"}
+
+
+def _require_confirm_code() -> bool:
+    """Require the out-of-band confirmation code for a real change (default on).
+
+    Keep on for auto-executing hosts (Open WebUI), where a model could otherwise self-approve.
+    Set PACKET_CODERS_REQUIRE_CONFIRM_CODE to a false-y value for hosts that confirm every tool
+    call themselves (Claude Desktop / Claude Code) — there the per-call approval is the gate.
+    """
+    value = os.environ.get(REQUIRE_CONFIRM_CODE_ENV, "true").strip().lower()
+    return value not in {"0", "false", "no", "off"}
+
 
 mcp = FastMCP(
     name="Packet Coders Lab",
@@ -43,7 +56,11 @@ mcp = FastMCP(
 @cache
 def get_lab_service() -> LabService:
     inventory_path = os.environ.get(INVENTORY_ENV, str(DEFAULT_INVENTORY))
-    return LabService(load_inventory(inventory_path), allow_writes=_writes_enabled())
+    return LabService(
+        load_inventory(inventory_path),
+        allow_writes=_writes_enabled(),
+        require_confirm_code=_require_confirm_code(),
+    )
 
 
 @mcp.tool(
@@ -130,9 +147,7 @@ def configure_device(
         confirm: Legacy flag; superseded by confirm_code.
         confirm_code: The one-time code shown on the server console for THIS change.
     """
-    return get_lab_service().configure_device(
-        device_name, commands, dry_run, confirm, confirm_code
-    )
+    return get_lab_service().configure_device(device_name, commands, dry_run, confirm, confirm_code)
 
 
 # configure_device is exposed by default, but always behind the out-of-band confirmation
