@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hmac
 import ipaddress
 import re
@@ -43,27 +44,38 @@ class LabService:
             "output": output,
         }
 
-    def run_health_check(self, device_name: str | None = None) -> dict[str, Any]:
+    async def run_health_check(self, device_name: str | None = None) -> dict[str, Any]:
+        """Health-check one device, or every device concurrently when omitted.
+
+        Each device's blocking SSH work runs in its own worker thread, so the lab is
+        checked in parallel rather than one login after another. netmiko stays
+        synchronous under the hood; asyncio.to_thread is what frees the event loop.
+        """
         names = [device_name] if device_name else sorted(self.inventory.devices)
-        results: dict[str, Any] = {}
-        for name in names:
-            device = self.inventory.get(name)
-            platform_commands = commands_for_platform(device.platform)
-            command_outputs = []
-            status = "healthy"
-            for command in platform_commands.health:
-                try:
-                    output = driver_for_device(device).send_command(device, command)
-                    command_outputs.append({"command": command, "output": output})
-                except Exception as exc:  # noqa: BLE001 - tool responses should be user-readable
-                    status = "error"
-                    command_outputs.append({"command": command, "error": str(exc)})
-            results[name] = {
-                "device": device.public_dict(),
-                "status": status,
-                "checks": command_outputs,
-            }
-        return {"results": results}
+        checks = await asyncio.gather(
+            *(asyncio.to_thread(self._check_one_device, name) for name in names)
+        )
+        return {"results": dict(zip(names, checks, strict=True))}
+
+    def _check_one_device(self, name: str) -> dict[str, Any]:
+        # Sync (runs in a worker thread): one login for the whole health bundle.
+        device = self.inventory.get(name)
+        platform_commands = commands_for_platform(device.platform)
+        command_outputs: list[dict[str, str]] = []
+        status = "healthy"
+        try:
+            for command, output in driver_for_device(device).send_commands(
+                device, platform_commands.health
+            ):
+                command_outputs.append({"command": command, "output": output})
+        except Exception as exc:  # noqa: BLE001 - login/connection failure for this device
+            status = "error"
+            command_outputs.append({"error": str(exc)})
+        return {
+            "device": device.public_dict(),
+            "status": status,
+            "checks": command_outputs,
+        }
 
     def get_ospf_neighbors(self, device_name: str) -> dict[str, Any]:
         device = self.inventory.get(device_name)

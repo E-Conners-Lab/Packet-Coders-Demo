@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from functools import cache
 from pathlib import Path
@@ -66,8 +67,9 @@ def get_lab_service() -> LabService:
 @mcp.tool(
     annotations={"readOnlyHint": True, "openWorldHint": True},
 )
-def list_lab_devices() -> dict[str, Any]:
+async def list_lab_devices() -> dict[str, Any]:
     """List lab devices available to this MCP server without returning secrets."""
+    # Pure in-memory lookup — no device I/O, so no thread offload needed.
     return get_lab_service().list_devices()
 
 
@@ -75,56 +77,60 @@ def list_lab_devices() -> dict[str, Any]:
     annotations={"readOnlyHint": True, "openWorldHint": True},
     timeout=60,
 )
-def send_command(device_name: str, command: str) -> dict[str, Any]:
+async def send_command(device_name: str, command: str) -> dict[str, Any]:
     """Run one read-only show/display command on a lab device.
 
     Args:
         device_name: Inventory name, such as r1 or spine1.
         command: A read-only show/display command. Configuration commands are blocked.
     """
-    return get_lab_service().send_command(device_name, command)
+    # netmiko's SSH call is blocking; run it in a worker thread so the event loop
+    # stays free to service other tool calls concurrently.
+    return await asyncio.to_thread(get_lab_service().send_command, device_name, command)
 
 
 @mcp.tool(
     annotations={"readOnlyHint": True, "openWorldHint": True},
     timeout=120,
 )
-def run_health_check(device_name: str | None = None) -> dict[str, Any]:
+async def run_health_check(device_name: str | None = None) -> dict[str, Any]:
     """Run basic health checks against one device, or all devices when omitted.
 
     Args:
         device_name: Optional inventory device name. If omitted, checks the whole lab.
     """
-    return get_lab_service().run_health_check(device_name)
+    # LabService.run_health_check fans out across devices concurrently (one thread per
+    # device), so a whole-lab check is N parallel logins rather than N serial ones.
+    return await get_lab_service().run_health_check(device_name)
 
 
 @mcp.tool(
     annotations={"readOnlyHint": True, "openWorldHint": True},
     timeout=60,
 )
-def get_ospf_neighbors(device_name: str) -> dict[str, Any]:
+async def get_ospf_neighbors(device_name: str) -> dict[str, Any]:
     """Read OSPF neighbors from a lab device using a platform-appropriate command.
 
     Args:
         device_name: Inventory name, such as r1 or spine1.
     """
-    return get_lab_service().get_ospf_neighbors(device_name)
+    return await asyncio.to_thread(get_lab_service().get_ospf_neighbors, device_name)
 
 
 @mcp.tool(
     annotations={"readOnlyHint": True, "openWorldHint": True},
     timeout=60,
 )
-def get_bgp_summary(device_name: str) -> dict[str, Any]:
+async def get_bgp_summary(device_name: str) -> dict[str, Any]:
     """Read BGP summary from a lab device using a platform-appropriate command.
 
     Args:
         device_name: Inventory name, such as r1 or spine1.
     """
-    return get_lab_service().get_bgp_summary(device_name)
+    return await asyncio.to_thread(get_lab_service().get_bgp_summary, device_name)
 
 
-def configure_device(
+async def configure_device(
     device_name: str,
     commands: list[str],
     dry_run: bool = True,
@@ -147,7 +153,15 @@ def configure_device(
         confirm: Legacy flag; superseded by confirm_code.
         confirm_code: The one-time code shown on the server console for THIS change.
     """
-    return get_lab_service().configure_device(device_name, commands, dry_run, confirm, confirm_code)
+    # The send_config path is blocking netmiko I/O; offload it to a thread.
+    return await asyncio.to_thread(
+        get_lab_service().configure_device,
+        device_name,
+        commands,
+        dry_run,
+        confirm,
+        confirm_code,
+    )
 
 
 # configure_device is exposed by default, but always behind the out-of-band confirmation
