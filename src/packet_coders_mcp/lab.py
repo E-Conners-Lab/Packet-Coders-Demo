@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import ipaddress
 import re
 import secrets
 import sys
@@ -201,12 +202,18 @@ def _count_ospf_neighbors(output: str) -> int:
 
 
 def _count_bgp_established_neighbors(output: str) -> int:
+    # Count only rows whose first column is a neighbor IP address. Anchoring on the
+    # neighbor address (rather than "line ends in a digit") avoids miscounting header
+    # lines such as Arista EOS's "Router identifier 10.255.0.4, local AS number 65004",
+    # which ends in the local AS number and would otherwise look like a neighbor row.
     count = 0
     for line in output.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.lower().startswith(("neighbor", "bgp ")):
+        fields = line.split()
+        if not fields:
             continue
-        fields = stripped.split()
-        if fields and fields[-1].isdigit():
-            count += 1
+        try:
+            ipaddress.ip_address(fields[0])
+        except ValueError:
+            continue
+        count += 1
     return count

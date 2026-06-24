@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from packet_coders_mcp.inventory import inventory_from_mapping
-from packet_coders_mcp.lab import LabService
+from packet_coders_mcp.lab import LabService, _count_bgp_established_neighbors
 
 
 @pytest.fixture
@@ -54,6 +54,23 @@ def test_bgp_established_neighbor_count_hint(lab: LabService) -> None:
     result = lab.get_bgp_summary("r1")
 
     assert result["established_neighbor_hint"] == 2
+
+
+def test_bgp_count_ignores_arista_router_id_line() -> None:
+    # Real Arista EOS output: the "Router identifier ..., local AS number 65004" line
+    # ends in the local AS number and has no leading "BGP", so the old heuristic
+    # counted it as a 4th neighbor. There are only 3 real neighbors here.
+    arista_eos = (
+        "BGP summary information for VRF default\n"
+        "Router identifier 10.255.0.4, local AS number 65004\n"
+        "Neighbor Status Codes: m - Under maintenance\n"
+        "  Neighbor   V AS           MsgRcvd   MsgSent  InQ OutQ  Up/Down State   PfxRcd PfxAcc\n"
+        "  10.14.14.1 4 65001           6280      6266    0    0    3d16h Estab   3      3\n"
+        "  10.24.24.2 4 65002           6257      6273    0    0    3d16h Estab   3      3\n"
+        "  10.34.34.3 4 65003           6279      6268    0    0    3d16h Estab   3      3"
+    )
+
+    assert _count_bgp_established_neighbors(arista_eos) == 3
 
 
 def test_configure_device_is_dry_run_by_default(lab: LabService) -> None:
