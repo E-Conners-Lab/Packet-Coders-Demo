@@ -15,6 +15,14 @@ class NetworkDriver(ABC):
     def send_config(self, device: Device, commands: list[str]) -> str:
         """Send configuration commands and return device output."""
 
+    def send_commands(self, device: Device, commands: list[str]) -> list[tuple[str, str]]:
+        """Run several operational commands, returning (command, output) pairs.
+
+        Default: one session per command (via send_command). Drivers with a real
+        persistent connection should override to reuse a single session for the batch.
+        """
+        return [(command, self.send_command(device, command)) for command in commands]
+
 
 class MockNetworkDriver(NetworkDriver):
     """Deterministic lab output for demos without a reachable network lab."""
@@ -45,6 +53,16 @@ class NetmikoDriver(NetworkDriver):
         connection = self._connect(device)
         try:
             return str(connection.send_command(command))
+        finally:
+            connection.disconnect()
+
+    def send_commands(self, device: Device, commands: list[str]) -> list[tuple[str, str]]:
+        # One login for the whole batch — the health bundle would otherwise re-SSH per
+        # command. Each device's batch still runs in its own thread (see LabService), so
+        # devices are checked concurrently even though one device's commands are serial.
+        connection = self._connect(device)
+        try:
+            return [(command, str(connection.send_command(command))) for command in commands]
         finally:
             connection.disconnect()
 

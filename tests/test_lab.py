@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
+from packet_coders_mcp.drivers import NetmikoDriver
 from packet_coders_mcp.inventory import inventory_from_mapping
 from packet_coders_mcp.lab import LabService, _count_bgp_established_neighbors
 
@@ -71,6 +74,58 @@ def test_bgp_count_ignores_arista_router_id_line() -> None:
     )
 
     assert _count_bgp_established_neighbors(arista_eos) == 3
+
+
+def test_run_health_check_covers_whole_lab(lab: LabService) -> None:
+    # run_health_check is async and fans out across devices concurrently.
+    result = asyncio.run(lab.run_health_check())
+
+    assert set(result["results"]) == {"r1", "spine1"}
+    assert all(dev["status"] == "healthy" for dev in result["results"].values())
+    # Each device ran its full health bundle (more than zero checks).
+    assert all(dev["checks"] for dev in result["results"].values())
+
+
+def test_run_health_check_single_device(lab: LabService) -> None:
+    result = asyncio.run(lab.run_health_check("r1"))
+
+    assert set(result["results"]) == {"r1"}
+
+
+def test_netmiko_send_commands_reuses_one_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The health bundle must log in ONCE per device, not once per command.
+    inventory = inventory_from_mapping(
+        {
+            "defaults": {"username": "admin", "password": "admin", "transport": "ssh"},
+            "devices": {"sw1": {"host": "192.0.2.1", "platform": "arista_eos"}},
+        }
+    )
+    device = inventory.get("sw1")
+    counters = {"connect": 0, "disconnect": 0}
+
+    class FakeConnection:
+        def send_command(self, command: str) -> str:
+            return f"output: {command}"
+
+        def disconnect(self) -> None:
+            counters["disconnect"] += 1
+
+    def fake_connect(_device: object) -> FakeConnection:
+        counters["connect"] += 1
+        return FakeConnection()
+
+    driver = NetmikoDriver()
+    monkeypatch.setattr(driver, "_connect", fake_connect)
+
+    pairs = driver.send_commands(device, ["show a", "show b", "show c"])
+
+    assert counters["connect"] == 1  # one login for three commands
+    assert counters["disconnect"] == 1
+    assert pairs == [
+        ("show a", "output: show a"),
+        ("show b", "output: show b"),
+        ("show c", "output: show c"),
+    ]
 
 
 def test_configure_device_is_dry_run_by_default(lab: LabService) -> None:
