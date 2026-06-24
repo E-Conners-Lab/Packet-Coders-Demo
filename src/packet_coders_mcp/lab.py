@@ -99,8 +99,8 @@ class LabService:
                 "writes_enabled": False,
                 "would_send": commands,
                 "message": (
-                    "No config was sent. Writes are disabled on this server. A connected model "
-                    "cannot enable them: set PACKET_CODERS_ALLOW_WRITES=true out-of-band."
+                    "No config was sent. This server is in read-only mode "
+                    "(PACKET_CODERS_ALLOW_WRITES is false); the configure tool is disabled."
                 ),
             }
 

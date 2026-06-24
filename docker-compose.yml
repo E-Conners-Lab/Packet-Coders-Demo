@@ -1,0 +1,70 @@
+# One command:  docker compose up   ->   http://localhost:3000
+#
+# Brings up the whole local stack: a model (Ollama), the lab tools (mcpo + this
+# repo's MCP server), and the chat UI (Open WebUI) — all wired together.
+# Defaults to the MOCK lab (no hardware). Config writes are available but always behind a
+# one-time, console-only confirmation code (a model can't self-approve); `make readonly`
+# disables the write tool entirely.
+#
+# Faster on a Mac? Use your host's Ollama (Metal GPU) instead:  make up-host
+name: packet-coders-lab
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+
+  # One-shot: pull the demo model into the bundled Ollama on first run, then exit.
+  model-init:
+    image: ollama/ollama:latest
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint:
+      - /bin/sh
+      - -c
+      - 'until ollama list >/dev/null 2>&1; do echo "waiting for ollama..."; sleep 2; done; ollama pull ${LLM_MODEL:-qwen3:8b}'
+    restart: "no"
+
+  mcpo:
+    # Pull the pre-built, end-to-end-tested image by default — no local build needed.
+    image: ghcr.io/e-conners-lab/packet-coders-mcpo:v1
+    # Developers can rebuild from source instead:  docker compose build mcpo
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PACKET_CODERS_INVENTORY=${PACKET_CODERS_INVENTORY:-/app/configs/inventory.mock.yaml}
+      - PACKET_CODERS_ALLOW_WRITES=${PACKET_CODERS_ALLOW_WRITES:-true}
+    volumes:
+      # Live-mirror the code you read in your IDE into the running server.
+      - ./src:/app/src:ro
+      - ./configs:/app/configs:ro
+      # Real lab: uncomment, drop your inventory.local.yaml in the repo root, and set
+      # PACKET_CODERS_INVENTORY=/app/inventory.local.yaml (env or .env).
+      # - ./inventory.local.yaml:/app/inventory.local.yaml:ro
+    restart: unless-stopped
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    ports:
+      - "3000:8080"
+    environment:
+      - WEBUI_AUTH=false
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - open-webui:/app/backend/data
+    depends_on:
+      - mcpo
+    restart: unless-stopped
+
+volumes:
+  ollama:
+  open-webui:

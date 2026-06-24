@@ -880,7 +880,7 @@ LLM_BASE_URL=http://&lt;host&gt;:8000/v1    # vLLM</code>
   </div>
   <div class="safety">
     <div class="guard"><span class="lk">🔒</span><span><b>Reads are open, writes are gated.</b> <code>send_command</code> blocks config &amp; destructive commands.</span></div>
-    <div class="guard"><span class="lk">🔒</span><span><b>Writes off by default.</b> <code>configure_device</code> isn't even exposed unless the server runs with <code>PACKET_CODERS_ALLOW_WRITES=true</code> — a connected model can't enable it.</span></div>
+    <div class="guard"><span class="lk">🔒</span><span><b>Writes are gated, not off.</b> <code>configure_device</code> is available by default, but every change needs the one-time console code; <code>PACKET_CODERS_ALLOW_WRITES=false</code> hides it entirely for read-only.</span></div>
     <div class="guard"><span class="lk">🔒</span><span><b>Hard-blocked lines.</b> <code>reload</code>, <code>erase</code>, <code>delete</code>, <code>write erase</code> never run.</span></div>
     <div class="guard"><span class="lk">🔒</span><span><b>The model can't self-approve.</b> A real change needs a one-time code printed only to the server console — a human reads it and supplies it, even in an auto-executing UI.</span></div>
     <div class="guard"><span class="lk">🔒</span><span><b>Backends stay on the tailnet.</b> An open Ollama/vLLM port is an unauthenticated model <em>and</em> tool surface.</span></div>
@@ -900,7 +900,7 @@ LLM_BASE_URL=http://&lt;host&gt;:8000/v1    # vLLM</code>
     <li>Show <b>server.py</b>: how <b>@mcp.tool</b> turns plain Python into MCP tools.</li>
     <li>Run <b>get_ospf_neighbors</b> &amp; <b>get_bgp_summary</b> against the mock lab.</li>
     <li>Switch the inventory to the <b>EVE-NG four-switch mesh</b> — same tools, real adjacencies.</li>
-    <li>Demo <b>configure_device</b> (server with <code>PACKET_CODERS_ALLOW_WRITES=true</code>): the model proposes, you read the one-time code off the server console to approve — add &amp; remove a demo loopback, watch it ride <b>eBGP</b>.</li>
+    <li>Demo <b>configure_device</b>: the model proposes a change, you read the one-time code off the server console to approve it — add &amp; remove a demo loopback, watch it ride <b>eBGP</b>.</li>
     <li>Repeat the whole thing driven by a <b>local Qwen3 model</b> — same tools, zero cloud API.</li>
   </ol>
   <div class="foot-tag">
