@@ -77,3 +77,72 @@ def test_configure_device_requires_confirm(lab: LabService) -> None:
 def test_configure_device_blocks_dangerous_lines(lab: LabService) -> None:
     with pytest.raises(ValueError, match="Blocked dangerous command"):
         lab.configure_device("r1", ["reload"])
+
+
+def test_configure_device_blocked_when_writes_disabled(lab: LabService) -> None:
+    # Default service has allow_writes=False: even a fully-confirmed call must not send.
+    result = lab.configure_device(
+        "r1",
+        ["no interface Loopback0"],
+        dry_run=False,
+        confirm=True,
+    )
+
+    assert result["dry_run"] is True
+    assert result["writes_enabled"] is False
+    assert "sent" not in result
+    assert "PACKET_CODERS_ALLOW_WRITES" in result["message"]
+
+
+def test_configure_device_requires_code_when_writes_enabled(lab: LabService) -> None:
+    # Even fully "confirmed", a write must not send without the out-of-band code.
+    enabled = LabService(lab.inventory, allow_writes=True)
+
+    result = enabled.configure_device(
+        "r1",
+        ["no interface Loopback0"],
+        dry_run=False,
+        confirm=True,
+    )
+
+    assert result["pending_confirmation"] is True
+    assert result["applied"] is False
+    assert "sent" not in result
+
+
+def test_configure_device_applies_with_correct_confirm_code(lab: LabService) -> None:
+    enabled = LabService(lab.inventory, allow_writes=True)
+    commands = ["interface Loopback100", "description MCP demo"]
+
+    pending = enabled.configure_device("r1", commands)
+    assert pending["pending_confirmation"] is True
+    assert "sent" not in pending
+
+    code = next(iter(enabled._pending_codes.values()))
+    applied = enabled.configure_device("r1", commands, confirm_code=code)
+
+    assert applied["applied"] is True
+    assert applied["sent"] == commands
+    assert "output" in applied
+
+
+def test_configure_device_rejects_wrong_confirm_code(lab: LabService) -> None:
+    enabled = LabService(lab.inventory, allow_writes=True)
+    commands = ["no interface Loopback0"]
+
+    enabled.configure_device("r1", commands)  # issues a real code to the console
+    result = enabled.configure_device("r1", commands, confirm_code="DEADBEEF")
+
+    assert result.get("applied") is not True
+    assert "sent" not in result
+
+
+def test_confirm_code_never_appears_in_response(lab: LabService) -> None:
+    import json
+
+    enabled = LabService(lab.inventory, allow_writes=True)
+    pending = enabled.configure_device("r1", ["interface Loopback123"])
+    code = next(iter(enabled._pending_codes.values()))
+
+    # The model must never be able to read the code out of the tool response.
+    assert code not in json.dumps(pending)

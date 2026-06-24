@@ -12,6 +12,16 @@ from packet_coders_mcp.lab import LabService
 
 DEFAULT_INVENTORY = Path(__file__).resolve().parents[2] / "configs" / "inventory.mock.yaml"
 INVENTORY_ENV = "PACKET_CODERS_INVENTORY"
+ALLOW_WRITES_ENV = "PACKET_CODERS_ALLOW_WRITES"
+
+
+def _writes_enabled() -> bool:
+    """Writes are OFF unless a human explicitly enables them out-of-band.
+
+    A connected model cannot flip this — it is read from the process environment,
+    not from any tool argument, so an agent cannot self-authorize a real change.
+    """
+    return os.environ.get(ALLOW_WRITES_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
 
 mcp = FastMCP(
     name="Packet Coders Lab",
@@ -30,7 +40,7 @@ mcp = FastMCP(
 @cache
 def get_lab_service() -> LabService:
     inventory_path = os.environ.get(INVENTORY_ENV, str(DEFAULT_INVENTORY))
-    return LabService(load_inventory(inventory_path))
+    return LabService(load_inventory(inventory_path), allow_writes=_writes_enabled())
 
 
 @mcp.tool(
@@ -94,30 +104,49 @@ def get_bgp_summary(device_name: str) -> dict[str, Any]:
     return get_lab_service().get_bgp_summary(device_name)
 
 
-@mcp.tool(
-    annotations={
-        "readOnlyHint": False,
-        "destructiveHint": True,
-        "idempotentHint": False,
-        "openWorldHint": True,
-    },
-    timeout=120,
-)
 def configure_device(
     device_name: str,
     commands: list[str],
     dry_run: bool = True,
     confirm: bool = False,
+    confirm_code: str | None = None,
 ) -> dict[str, Any]:
-    """Apply config lines to a lab device, with dry-run enabled by default.
+    """Apply config lines to a lab device behind a two-step human confirmation gate.
+
+    Step 1 - call WITHOUT confirm_code: returns a preview and prints a one-time
+    confirmation code to the SERVER CONSOLE only (never in this response). Step 2 - a
+    human reads that code off the console and you call again with the same commands and
+    confirm_code set to it. Only then is config sent. The model never sees the code, so it
+    cannot self-approve. Requires the server to run with PACKET_CODERS_ALLOW_WRITES=true;
+    otherwise this tool is not exposed at all.
 
     Args:
         device_name: Inventory name, such as r1 or spine1.
         commands: Config lines only. Do not include configure terminal or end.
-        dry_run: When true, preview the change without sending config.
-        confirm: Must be true with dry_run=false before config is sent.
+        dry_run: Legacy preview flag; the confirm_code step now governs sending.
+        confirm: Legacy flag; superseded by confirm_code.
+        confirm_code: The one-time code shown on the server console for THIS change.
     """
-    return get_lab_service().configure_device(device_name, commands, dry_run, confirm)
+    return get_lab_service().configure_device(
+        device_name, commands, dry_run, confirm, confirm_code
+    )
+
+
+# Register the only write tool ONLY when writes are enabled out-of-band. With writes
+# disabled (the default), configure_device is never advertised, so an auto-executing
+# host (e.g. Open WebUI) never sees it and there is nothing to filter in the UI. Launch
+# with PACKET_CODERS_ALLOW_WRITES=true (e.g. from Claude Desktop, which confirms each
+# tool call) to expose it.
+if _writes_enabled():
+    configure_device = mcp.tool(
+        annotations={
+            "readOnlyHint": False,
+            "destructiveHint": True,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
+        timeout=120,
+    )(configure_device)
 
 
 def main() -> None:

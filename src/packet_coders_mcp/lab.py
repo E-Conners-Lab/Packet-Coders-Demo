@@ -1,18 +1,25 @@
 from __future__ import annotations
 
+import hmac
 import re
-from dataclasses import dataclass
+import secrets
+import sys
+from dataclasses import dataclass, field
 from typing import Any
 
 from packet_coders_mcp.commands import commands_for_platform
 from packet_coders_mcp.drivers import driver_for_device
-from packet_coders_mcp.inventory import Inventory
+from packet_coders_mcp.inventory import Device, Inventory
 from packet_coders_mcp.safety import assert_safe_config_lines, assert_safe_show_command
 
 
 @dataclass
 class LabService:
     inventory: Inventory
+    allow_writes: bool = False
+    _pending_codes: dict[tuple[str, tuple[str, ...]], str] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     def list_devices(self) -> dict[str, Any]:
         return self.inventory.public_dict()
@@ -79,24 +86,78 @@ class LabService:
         commands: list[str],
         dry_run: bool = True,
         confirm: bool = False,
+        confirm_code: str | None = None,
     ) -> dict[str, Any]:
         assert_safe_config_lines(commands)
         device = self.inventory.get(device_name)
-        if dry_run or not confirm:
+
+        if not self.allow_writes:
             return {
                 "device": device.name,
                 "dry_run": True,
+                "applied": False,
+                "writes_enabled": False,
                 "would_send": commands,
-                "message": "No config was sent. Set dry_run=False and confirm=True to apply.",
+                "message": (
+                    "No config was sent. Writes are disabled on this server. A connected model "
+                    "cannot enable them: set PACKET_CODERS_ALLOW_WRITES=true out-of-band."
+                ),
             }
 
-        output = driver_for_device(device).send_config(device, commands)
+        # Writes are enabled, but a real send still needs a one-time confirmation code that is
+        # printed only to the server console (stderr) — never returned to the model. A human
+        # reads it off the console and supplies it, so the model cannot self-approve a change.
+        key = (device_name, tuple(commands))
+
+        if confirm_code is not None:
+            expected = self._pending_codes.get(key)
+            if expected is not None and hmac.compare_digest(str(confirm_code), expected):
+                del self._pending_codes[key]
+                output = driver_for_device(device).send_config(device, commands)
+                return {
+                    "device": device.name,
+                    "dry_run": False,
+                    "applied": True,
+                    "writes_enabled": True,
+                    "sent": commands,
+                    "output": output,
+                }
+
+        code = secrets.token_hex(3).upper()
+        self._pending_codes[key] = code
+        _emit_confirmation(device, commands, code)
         return {
             "device": device.name,
-            "dry_run": False,
-            "sent": commands,
-            "output": output,
+            "dry_run": True,
+            "applied": False,
+            "writes_enabled": True,
+            "pending_confirmation": True,
+            "would_send": commands,
+            "message": (
+                ("That confirmation code was invalid or expired. " if confirm_code else "")
+                + "A one-time confirmation code was printed to the server console (it is NOT "
+                "included in this response). Ask the operator to read it, then call "
+                "configure_device again with the same commands and confirm_code set to it."
+            ),
         }
+
+
+def _emit_confirmation(device: Device, commands: list[str], code: str) -> None:
+    """Print the one-time confirmation code to the server console (stderr only).
+
+    Deliberately uses stderr, never the tool's return value, so the model cannot see the
+    code and cannot self-approve a change. A human must read it off the mcpo console.
+    """
+    banner = "=" * 60
+    body = "\n".join(f"    {line}" for line in commands)
+    print(
+        f"\n{banner}\n"
+        f"  CONFIRM CONFIG CHANGE on {device.name} ({device.host})\n{body}\n\n"
+        f"  Give the model this confirm_code to apply:  {code}\n"
+        f"{banner}",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def _count_ospf_neighbors(output: str) -> int:
