@@ -48,9 +48,8 @@ services:
       # Live-mirror the code you read in your IDE into the running server.
       - ./src:/app/src:ro
       - ./configs:/app/configs:ro
-      # Real lab: uncomment, drop your inventory.local.yaml in the repo root, and set
-      # PACKET_CODERS_INVENTORY=/app/inventory.local.yaml (env or .env).
-      # - ./inventory.local.yaml:/app/inventory.local.yaml:ro
+      # Real lab: drop your inventory.local.yaml in ./configs/ (already mounted above) and set
+      # PACKET_CODERS_INVENTORY=/app/configs/inventory.local.yaml (env or .env). No extra mount needed.
     restart: unless-stopped
 
   open-webui:

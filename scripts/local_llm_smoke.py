@@ -14,9 +14,9 @@ Simplest run (no lab, no extra hardware) -- local Ollama + the mock inventory:
 Defaults: LLM_BASE_URL=http://localhost:11434/v1 (local Ollama) and the server's
 built-in mock inventory (no lab needed). Override either for a real setup:
     LLM_BASE_URL=http://<host>:11434/v1 \
-    LLM_MODEL=qwen3.6:35b-32k \
-    PACKET_CODERS_INVENTORY=./inventory.local.yaml \
-    uv run python scripts/local_llm_smoke.py "Are SW1's OSPF neighbors all FULL?"
+    LLM_MODEL=qwen3:8b \
+    PACKET_CODERS_INVENTORY=./configs/inventory.local.yaml \
+    uv run python scripts/local_llm_smoke.py "Are sw1's OSPF neighbors all FULL?"
 """
 
 from __future__ import annotations
@@ -97,8 +97,10 @@ async def run(prompt: str) -> int:
             for t in all_tools
             if t.name in READ_ONLY_TOOLS
         ]
-        print(f"Exposing {len(tools)} read-only tools to {model}: "
-              f"{', '.join(sorted(t['function']['name'] for t in tools))}\n")
+        print(
+            f"Exposing {len(tools)} read-only tools to {model}: "
+            f"{', '.join(sorted(t['function']['name'] for t in tools))}\n"
+        )
 
         messages: list[dict] = [
             {"role": "system", "content": SYSTEM_PROMPT},

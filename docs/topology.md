@@ -1,5 +1,9 @@
 # Reference Topology (the live demo lab)
 
+> This is just the lab used in *this* demo, shown for context. You don't need to build it —
+> point the server at your own EVE-NG / CML / GNS3 / Containerlab devices instead (see
+> [real-lab.md](real-lab.md)).
+
 The live demo runs against **four Arista EOS switches in a full mesh**, running **two
 protocols at once**: OSPF (single area 0) carries the transit links, and a full mesh of
 **eBGP** sessions advertises the loopbacks. Every switch holds a `FULL` OSPF adjacency *and*
