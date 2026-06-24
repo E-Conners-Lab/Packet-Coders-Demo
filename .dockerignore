@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+**/__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+docs
+node_modules
+*.log
+# never bake real lab secrets into the build context
+inventory.local.yaml
+mcp.local.json
