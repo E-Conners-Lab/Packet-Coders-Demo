@@ -95,10 +95,16 @@ async def send_command(device_name: str, command: str) -> dict[str, Any]:
     timeout=120,
 )
 async def run_health_check(device_name: str | None = None) -> dict[str, Any]:
-    """Run basic health checks against one device, or all devices when omitted.
+    """Audit routing health for one device, or the whole lab when omitted.
+
+    This is the one-call routing audit. For each device it returns base health (version,
+    interfaces, routes) PLUS OSPF neighbor state and BGP summary, with
+    ospf_neighbor_count_hint and established_neighbor_hint. Use THIS tool to confirm OSPF
+    adjacencies are FULL and BGP sessions are Established across the lab — you do not need
+    to call get_ospf_neighbors or get_bgp_summary per device. Devices run concurrently.
 
     Args:
-        device_name: Optional inventory device name (case-insensitive). If omitted, checks
+        device_name: Optional inventory device name (case-insensitive). If omitted, audits
             the whole lab. Call list_lab_devices first to get exact names — do not guess.
     """
     # LabService.run_health_check fans out across devices concurrently (one thread per

@@ -58,22 +58,36 @@ class LabService:
         return {"results": dict(zip(names, checks, strict=True))}
 
     def _check_one_device(self, name: str) -> dict[str, Any]:
-        # Sync (runs in a worker thread): one login for the whole health bundle.
+        # Sync (runs in a worker thread): one login for the whole bundle. We include the
+        # routing-protocol reads (OSPF neighbors + BGP summary) alongside the base health
+        # commands so a single run_health_check answers "are OSPF/BGP adjacencies up?" —
+        # otherwise a caller has to chain get_ospf_neighbors/get_bgp_summary per device,
+        # which smaller tool-callers tend to skip.
         device = self.inventory.get(name)
         platform_commands = commands_for_platform(device.platform)
+        ospf_cmd = platform_commands.ospf_neighbors
+        bgp_cmd = platform_commands.bgp_summary
+        commands = [*platform_commands.health, ospf_cmd, bgp_cmd]
+
         command_outputs: list[dict[str, str]] = []
         status = "healthy"
+        ospf_hint: int | None = None
+        bgp_hint: int | None = None
         try:
-            for command, output in driver_for_device(device).send_commands(
-                device, platform_commands.health
-            ):
+            for command, output in driver_for_device(device).send_commands(device, commands):
                 command_outputs.append({"command": command, "output": output})
+                if command == ospf_cmd:
+                    ospf_hint = _count_ospf_neighbors(output)
+                elif command == bgp_cmd:
+                    bgp_hint = _count_bgp_established_neighbors(output)
         except Exception as exc:  # noqa: BLE001 - login/connection failure for this device
             status = "error"
             command_outputs.append({"error": str(exc)})
         return {
             "device": device.public_dict(),
             "status": status,
+            "ospf_neighbor_count_hint": ospf_hint,
+            "established_neighbor_hint": bgp_hint,
             "checks": command_outputs,
         }
 

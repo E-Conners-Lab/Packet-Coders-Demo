@@ -111,6 +111,18 @@ def test_run_health_check_single_device(lab: LabService) -> None:
     assert set(result["results"]) == {"r1"}
 
 
+def test_run_health_check_includes_routing_state(lab: LabService) -> None:
+    # A single run_health_check must answer the routing audit: it includes OSPF + BGP
+    # outputs and their hints, so a caller need not chain the per-device protocol tools.
+    r1 = asyncio.run(lab.run_health_check("r1"))["results"]["r1"]
+
+    assert r1["ospf_neighbor_count_hint"] == 2  # mock OSPF output has 2 FULL/ neighbors
+    assert r1["established_neighbor_hint"] == 2  # mock BGP output has 2 neighbors
+    commands = [c.get("command") for c in r1["checks"]]
+    assert "show ip ospf neighbor" in commands
+    assert "show ip bgp summary" in commands
+
+
 def test_netmiko_send_commands_reuses_one_session(monkeypatch: pytest.MonkeyPatch) -> None:
     # The health bundle must log in ONCE per device, not once per command.
     inventory = inventory_from_mapping(
