@@ -59,6 +59,7 @@ cp .env.example .env   # then edit
 | `MCPO_PORT` | `8000` | Host port for the mcpo tool server. Change it if `8000` is already in use (then add `http://localhost:<port>` in Open WebUI). |
 | `PACKET_CODERS_INVENTORY` | mock lab | Path **inside the container** to the inventory. Point at `/app/configs/inventory.local.yaml` for a real lab. |
 | `PACKET_CODERS_ALLOW_WRITES` | `true` | `false` hides `configure_device` entirely (read-only). |
+| `PACKET_CODERS_REQUIRE_CONFIRM_CODE` | `true` | `false` drops the out-of-band code gate so a non-dry-run `configure_device` applies directly — only for hosts that confirm each tool call themselves (Claude Desktop/Code). Leave `true` for auto-executing hosts like Open WebUI (see [Safety Model](#safety-model)). |
 | `OLLAMA_BASE_URL` | bundled Ollama | Model backend. `make up-host` sets this to your host Ollama for you. |
 | `LLM_MODEL` | `qwen3:8b` | Model the **bundled** Ollama pulls on `docker compose up`. (Ignored by `make up-host`.) |
 
@@ -148,7 +149,9 @@ an `Established` eBGP session with the other three.
 | SW3 | `arista_eos` | `10.255.0.3/32` | 1 / area 0 | `65003` |
 | SW4 | `arista_eos` | `10.255.0.4/32` | 1 / area 0 | `65004` |
 
-**Point-to-point links** (six `/24` transit segments, full mesh):
+**Two-node transit segments** (six `/24` links, full mesh — each segment connects exactly
+two switches; OSPF runs them as its default broadcast network type, so you'll see a DR/BDR
+elected on each):
 
 | Link | Subnet | A-side | B-side |
 | --- | --- | --- | --- |
