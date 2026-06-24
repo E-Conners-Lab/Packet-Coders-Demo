@@ -198,9 +198,9 @@ real backends and lab by overriding the defaults:
 
 ```bash
 LLM_BASE_URL=http://<your-tailnet-host>:11434/v1 \
-LLM_MODEL=qwen3.6:35b-32k \
+LLM_MODEL=qwen3:8b \
 PACKET_CODERS_INVENTORY=./configs/inventory.local.yaml \
-  uv run python scripts/local_llm_smoke.py "Are SW1's OSPF neighbors all FULL?"
+  uv run python scripts/local_llm_smoke.py "Are sw1's OSPF neighbors all FULL?"
 ```
 
 Works the same against vLLM — point `LLM_BASE_URL` at `http://<host>:8000/v1`. If the smoke
@@ -232,7 +232,7 @@ Each server is served under `/<name>`, so in Open WebUI you add **one tool serve
 > will stop returning tools.
 
 A natural demo: the model checks the lab, then **writes the report to a file** via the
-filesystem connector ("save SW1's OSPF status to `ospf-report.md`").
+filesystem connector ("save sw1's OSPF status to `ospf-report.md`").
 
 **Connector safety:**
 - **Scope the filesystem connector to a dedicated sandbox directory** — pass that one path as

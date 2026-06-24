@@ -1,4 +1,10 @@
-# Real lab (EVE-NG / Containerlab) setup
+# Connect your own lab
+
+This server talks to **your** network lab over SSH — it doesn't prescribe one. Point it at
+whatever you already run: **EVE-NG, CML, GNS3, Containerlab**, or physical gear. Anything the
+host can reach by SSH works; you just describe your devices in an inventory file. The
+four-switch mesh in [topology.md](topology.md) is only the *reference* lab used in this demo —
+you don't need to replicate it or match its addressing.
 
 ## Inventory model
 
@@ -41,10 +47,11 @@ Common `platform` values:
 ## Wiring it up
 
 1. Put your lab devices on a management network reachable from the machine running this server.
+   (Works the same whether they're EVE-NG, CML, GNS3, Containerlab nodes, or physical gear.)
 2. Enable SSH on the nodes (password login is fine — the driver also handles OpenSSH
    `keyboard-interactive`, which is how many Linux-based nodes deliver password auth).
-3. Copy the example to a git-ignored local file and fill in real `host`, `username`,
-   `password`, and `platform` values:
+3. Copy the example template to a git-ignored local file and fill in your own `host`,
+   `username`, `password`, and `platform` values — add or remove devices to match your lab:
 
    ```bash
    cp configs/inventory.eve-ng.example.yaml configs/inventory.local.yaml
@@ -67,5 +74,5 @@ PACKET_CODERS_INVENTORY=configs/inventory.local.yaml uv run packet-coders-mcp
 Verify it picked up the real lab with `list_lab_devices` — the devices should show
 `transport: ssh` and your real hosts (not the `mock-*` names).
 
-See [topology.md](topology.md) for the reference four-switch lab the demo runs against, and
-[safety.md](safety.md) for how credentials and addresses are kept out of git.
+See [topology.md](topology.md) for the demo's reference lab (for context — yours can differ),
+and [safety.md](safety.md) for how credentials and addresses are kept out of git.
