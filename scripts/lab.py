@@ -21,6 +21,7 @@ Addressing (derived from the switch number N in each device name):
     loopback   10.255.0.N/32              router-id, and AS 6500N
     link A<->B 10.<min><max>.<min><max>.0/24, host octet = the switch's own number
 """
+
 from __future__ import annotations
 
 import os
@@ -70,7 +71,9 @@ def discover(lab: LabService, devices: list[str]) -> dict[str, dict[str, str]]:
     return adjacency
 
 
-def discover_stable(lab: LabService, devices: list[str], timeout: int = 90) -> dict[str, dict[str, str]]:
+def discover_stable(
+    lab: LabService, devices: list[str], timeout: int = 90
+) -> dict[str, dict[str, str]]:
     """Poll LLDP until every link is seen from both ends (handles post-strip relearn)."""
     deadline = time.time() + timeout
     while True:
@@ -102,7 +105,7 @@ def build_cfg(device: str, links: dict[str, str]) -> list[str]:
     cfg += [f"network {subnet}.0/24 area 0" for subnet in sorted(subnets)]
     cfg.append(f"network 10.255.0.{n}/32 area 0")
     cfg += [f"router bgp {ASN_BASE + n}", f"router-id 10.255.0.{n}"]
-    for port, remote in sorted(links.items()):
+    for _port, remote in sorted(links.items()):
         rn = switch_num(remote)
         cfg.append(f"neighbor {link_prefix(n, rn)}.{rn} remote-as {ASN_BASE + rn}")
     cfg.append(f"network 10.255.0.{n}/32")
@@ -148,8 +151,11 @@ def cmd_verify(lab: LabService, devices: list[str]) -> None:
     if others:
         target = switch_num(others[0])
         route = lab.send_command(devices[0], f"show ip route 10.255.0.{target}")["output"]
-        source = "eBGP (B E)" if re.search(r"^\s*B E\s", route, re.M) else (
-            "OSPF (O)" if re.search(r"^\s*O\s", route, re.M) else "not present")
+        source = (
+            "eBGP (B E)"
+            if re.search(r"^\s*B E\s", route, re.M)
+            else ("OSPF (O)" if re.search(r"^\s*O\s", route, re.M) else "not present")
+        )
         print(f"  forwarding: {devices[0]} reaches 10.255.0.{target} via {source}")
 
 
@@ -157,7 +163,9 @@ def cmd_plan(lab: LabService, devices: list[str]) -> None:
     print("== PLAN (no config is sent) ==")
     adjacency = discover_stable(lab, devices)
     for device in devices:
-        wiring = ", ".join(f"{p.replace('Ethernet', 'Et')}->{r}" for p, r in sorted(adjacency[device].items()))
+        wiring = ", ".join(
+            f"{p.replace('Ethernet', 'Et')}->{r}" for p, r in sorted(adjacency[device].items())
+        )
         print(f"\n# {device}  ({wiring})")
         print("#  strip:")
         for line in strip_cfg(device):
@@ -178,7 +186,9 @@ def cmd_build(lab: LabService, devices: list[str]) -> None:
     print("== DISCOVER (LLDP) ==")
     adjacency = discover_stable(lab, devices)
     for device in devices:
-        wiring = ", ".join(f"{p.replace('Ethernet', 'Et')}->{r}" for p, r in sorted(adjacency[device].items()))
+        wiring = ", ".join(
+            f"{p.replace('Ethernet', 'Et')}->{r}" for p, r in sorted(adjacency[device].items())
+        )
         print(f"  {device}: {wiring}")
     print("== BUILD (OSPF area 0 + eBGP full mesh) ==")
     for device in devices:
