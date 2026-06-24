@@ -76,6 +76,25 @@ def test_bgp_count_ignores_arista_router_id_line() -> None:
     assert _count_bgp_established_neighbors(arista_eos) == 3
 
 
+def test_device_lookup_is_case_insensitive(lab: LabService) -> None:
+    # Local tool-callers often send SW1 / R1 when the inventory says sw1 / r1.
+    assert lab.inventory.get("R1").name == "r1"
+    assert lab.inventory.get("SPINE1").name == "spine1"
+    assert lab.inventory.get("Spine1").name == "spine1"
+
+
+def test_device_lookup_echoes_canonical_name(lab: LabService) -> None:
+    # A case-variant request still resolves AND responses echo the inventory's spelling.
+    result = lab.send_command("R1", "show version")
+    assert result["device"] == "r1"
+
+
+def test_unknown_device_lists_known_names(lab: LabService) -> None:
+    # An invented name (not a case variant) still errors — but names the valid devices.
+    with pytest.raises(ValueError, match="Known devices: r1, spine1"):
+        lab.inventory.get("switch1")
+
+
 def test_run_health_check_covers_whole_lab(lab: LabService) -> None:
     # run_health_check is async and fans out across devices concurrently.
     result = asyncio.run(lab.run_health_check())
