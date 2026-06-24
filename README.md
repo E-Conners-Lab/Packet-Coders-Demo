@@ -10,7 +10,7 @@ network lab. It uses FastMCP and exposes a small, useful set of tools:
 | `run_health_check` | Run a small health bundle against one device or the whole lab. |
 | `get_ospf_neighbors` | Read OSPF neighbor state with the right command per platform. |
 | `get_bgp_summary` | Read BGP summary state with the right command per platform. |
-| `configure_device` | Push config lines, dry-run by default, with confirmation required. |
+| `configure_device` | Push config lines behind a write-enable flag + a one-time out-of-band confirmation code (off by default). |
 
 The demo can run in mock mode with no lab, then switch to a real EVE-NG lab by changing
 the inventory file. The same server works from Claude Code, Claude Desktop, or a fully
@@ -69,8 +69,10 @@ tool-calling loop and connects the tools to whatever model you point it at.
 
 ## Current Lab State (reference topology)
 
-The live demo runs against **four Arista EOS switches in a full mesh**, all in a single
-OSPF area. Every switch holds a `FULL` adjacency with the other three.
+The live demo runs against **four Arista EOS switches in a full mesh**, running **two
+protocols at once**: OSPF (single area 0) carries the transit links, and a full mesh of
+**eBGP** sessions advertises the loopbacks. Every switch holds a `FULL` OSPF adjacency *and*
+an `Established` eBGP session with the other three.
 
 > **Note on addresses:** the management/SSH addresses are environment-specific and live
 > only in your git-ignored `inventory.local.yaml` (see [Keeping the lab private](#keeping-the-lab-private)).
@@ -89,14 +91,14 @@ OSPF area. Every switch holds a `FULL` adjacency with the other three.
                      SW4 (10.255.0.4)
 ```
 
-**Routers / router IDs** (each switch's `Loopback0` doubles as its OSPF router ID):
+**Routers / router IDs** (each switch's `Loopback0` doubles as its OSPF + BGP router ID):
 
-| Switch | Platform | Loopback0 / Router ID | OSPF process / area |
-| --- | --- | --- | --- |
-| SW1 | `arista_eos` | `10.255.0.1/32` | 1 / area 0 |
-| SW2 | `arista_eos` | `10.255.0.2/32` | 1 / area 0 |
-| SW3 | `arista_eos` | `10.255.0.3/32` | 1 / area 0 |
-| SW4 | `arista_eos` | `10.255.0.4/32` | 1 / area 0 |
+| Switch | Platform | Loopback0 / Router ID | OSPF process / area | BGP AS |
+| --- | --- | --- | --- | --- |
+| SW1 | `arista_eos` | `10.255.0.1/32` | 1 / area 0 | `65001` |
+| SW2 | `arista_eos` | `10.255.0.2/32` | 1 / area 0 | `65002` |
+| SW3 | `arista_eos` | `10.255.0.3/32` | 1 / area 0 | `65003` |
+| SW4 | `arista_eos` | `10.255.0.4/32` | 1 / area 0 | `65004` |
 
 **Point-to-point links** (six `/24` transit segments, full mesh):
 
@@ -109,10 +111,16 @@ OSPF area. Every switch holds a `FULL` adjacency with the other three.
 | SW2–SW4 | `10.24.24.0/24` | SW2 `Et2` .2 | SW4 `Et2` .4 |
 | SW3–SW4 | `10.34.34.0/24` | SW3 `Et1` .3 | SW4 `Et1` .4 |
 
-Each switch advertises its `Loopback0/32` into area 0, so every loopback is reachable from
-every switch. Adding a demo loopback (e.g. `Loopback11 10.255.0.11/32` advertised into
-area 0) and watching it appear in the other switches' routing tables is a clean way to show
-`configure_device` driving a real change end-to-end.
+Reachability is split by protocol, which is visible in any switch's `show ip route`: `C` for
+the three local transit links and its own loopback, `O` for the three **remote transit
+`/24`s** (learned via OSPF), and `B` for the three **remote loopbacks** (the rest of the
+`10.255.0.0/24` space, learned via eBGP). The eBGP sessions peer over the directly connected
+transit-link addresses — SW1 (`AS 65001`) peers with `10.12.12.2` (`AS 65002`), `10.13.13.3`
+(`AS 65003`), and `10.14.14.4` (`AS 65004`).
+
+Adding a demo loopback with `configure_device` and watching it propagate is a clean way to
+show a real change end-to-end: advertise it into OSPF and it appears as `O` on the neighbors,
+or originate it with a BGP `network` statement and it appears as `B`.
 
 ## Quick Start
 
@@ -243,8 +251,11 @@ PACKET_CODERS_INVENTORY=<ABSOLUTE_PATH_TO_REPO>/configs/inventory.mock.yaml \
   uvx mcpo --port 8000 -- uv run --project <ABSOLUTE_PATH_TO_REPO> packet-coders-mcp
 ```
 
-In Open WebUI, add `http://localhost:8000` as a Tool server (Settings → Tools). The six
-lab tools then show up to the model.
+In Open WebUI, add `http://localhost:8000` as a **tool server** (**Settings → Integrations →
+Manage Tool Servers** — called *Tools* in older builds). The six lab tools then show up to the
+model. **If you run Open WebUI in Docker, that URL has a catch — see [Open WebUI setup](#open-webui-setup)
+below for the `localhost` vs `host.docker.internal` split and the *Function Calling → Native*
+step that makes tools actually fire.**
 
 **2a. Backend — Ollama (e.g. on a Mac Mini, reached over Tailscale):**
 
@@ -268,6 +279,52 @@ lab tools then show up to the model.
   `hermes` parser) — **verify against the current vLLM docs for your exact model.** With the
   wrong parser, the model emits tool calls as plain text and nothing fires.
 - Add it to Open WebUI as an OpenAI connection: `http://<your-tailnet-host>:8000/v1`.
+
+#### Open WebUI setup
+
+The steps above assume Open WebUI is already running. If you're standing one up from scratch —
+or you hit *"error connecting to the server"* or *"the model ignores the tools"* — this is the
+part that trips everyone up.
+
+**Run a disposable local Open WebUI (optional).** Any existing instance works; this just gives
+you a clean one on the same machine as the model and the tools:
+
+```bash
+docker run -d -p 3000:8080 \
+  --add-host=host.docker.internal:host-gateway \
+  -e WEBUI_AUTH=False \
+  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
+  -v owui-demo:/app/backend/data \
+  --name owui-demo ghcr.io/open-webui/open-webui:main
+```
+
+Open `http://localhost:3000` (`WEBUI_AUTH=False` skips the login for a single-user demo).
+
+**The Docker URL split (the #1 gotcha).** When Open WebUI runs in a container it reaches its
+two dependencies over *different* network paths, so they take *different* URLs:
+
+| You're adding | In Open WebUI | Fetched by | URL (Open WebUI in Docker, same host) |
+| --- | --- | --- | --- |
+| Model backend (Ollama) | Settings → Connections | the **container** (backend) | `http://host.docker.internal:11434` |
+| Tool server (mcpo) | Settings → **Integrations** | your **browser** | `http://localhost:8000` |
+
+Open WebUI calls OpenAPI tool servers **from the browser**, but reaches model backends **from
+the server process**. `host.docker.internal` resolves inside the container but means nothing to
+your browser; `localhost` is the reverse. Use each where it belongs. *(If you instead run Open
+WebUI natively — `pip install open-webui` — both are simply `localhost`.)*
+
+**Add the tool server.** Settings → **Integrations** → **Manage Tool Servers** → **+** → enter
+the **bare base URL** (`http://localhost:8000`) — no `/openapi.json` (Open WebUI appends it) and
+no API key unless you started `mcpo` with `--api-key`. It should validate and list the six tools.
+
+**Make the model actually call the tools.** Open the model's **Advanced Params** (chat ⚙️ or the
+model editor) and set **Function Calling → Native**. With the default mode, Ollama models
+routinely ignore connected tools — the server looks fine, the model just never calls it. Pair
+this with the raised context window from step 2a.
+
+**Still stuck?** Run `scripts/local_llm_smoke.py` (below) — it drives the same tools *without*
+Open WebUI. If the smoke test passes but the UI doesn't, the problem is one of the three Open
+WebUI settings above, not the model or the server.
 
 **Model-strength guidance:** lead with the larger Qwen3 model as the "driver" — it picks
 the right tool and emits clean JSON. Keep smaller models (and Gemma variants, which are less
@@ -299,6 +356,43 @@ PACKET_CODERS_INVENTORY=./inventory.local.yaml \
 Works the same against vLLM — point `LLM_BASE_URL` at `http://<host>:8000/v1`. It isolates
 the local-model half of the chain: if this passes, any failure in Open WebUI is in the host
 config, not the model or the server.
+
+### Adding external connectors (multi-server mcpo)
+
+The lab server is just one MCP server — the same host can combine it with off-the-shelf
+connectors. `mcpo` mounts **several MCP servers behind one process** via a config file, each
+under its own URL prefix. A template is in `examples/mcpo.config.example.json`; it adds the
+official [filesystem connector](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem)
+alongside the lab server:
+
+```bash
+# fill in the placeholders first, then:
+uvx mcpo --port 8000 --api-key "$KEY" --config ~/.config/packet-coders-mcpo.config.json
+```
+
+Each server is served under `/<name>`, so in Open WebUI you add **one tool server per
+prefix**:
+
+| Connector | Open WebUI tool-server URL |
+| --- | --- |
+| Lab tools | `http://<host>:8000/packet-coders` |
+| Filesystem | `http://<host>:8000/filesystem` |
+
+> **Migrating from a single-server mcpo:** switching to `--config` moves the lab tools from
+> the root URL to `/packet-coders`. Update your existing Open WebUI connection's URL or it
+> will stop returning tools.
+
+A natural demo: the model checks the lab, then **writes the report to a file** via the
+filesystem connector ("save SW1's OSPF status to `ospf-report.md`").
+
+**Connector safety (AI-2 / SEC):**
+- **Scope the filesystem connector to a dedicated sandbox directory** — pass that one path as
+  its argument, never `$HOME` or the repo. The server refuses access outside it
+  (`list_allowed_directories` shows the boundary); it can read **and write** within it.
+- **Pin the connector version** (`@…@2026.1.14`) and treat `npx -y` as installing a
+  dependency — vet it like any other (SEC-30 / PLAN-12).
+- Use the **Function Name Filter List** in Open WebUI to drop tools you don't want exposed
+  (e.g. `!move_file`, `!edit_file`) the same way you would `!configure_device`.
 
 ## Inventory Model
 
@@ -368,14 +462,24 @@ management IPs, and no machine-specific paths**:
 
 ## Safety Model
 
-This is a demo server, not a production change platform. It still has a few useful guardrails:
+This is a demo server, not a production change platform. Its guardrails, strongest first:
 
+- **Writes are disabled by default.** Unless the server is started with
+  `PACKET_CODERS_ALLOW_WRITES=true`, the `configure_device` tool is **not even advertised** — an
+  auto-executing host like Open WebUI never sees it. The flag is a human, out-of-band control read
+  from the process environment, so **a connected model cannot set it**.
+- **A real change needs an out-of-band confirmation code the model never sees.** With writes
+  enabled, the first `configure_device` call returns a preview and prints a one-time code to the
+  **server console (stderr) only** — never in the tool response. To apply, a human reads that code
+  off the console and calls again with `confirm_code` set to it. Because the code never reaches the
+  model, the model **cannot self-approve**, even on an auto-executing host like Open WebUI. This is
+  the human-in-the-loop gate, and it works with **any** model (Qwen included) and **any** client.
+- **Or use a host that confirms each tool call.** Claude Desktop / Claude Code additionally prompt
+  you to approve every tool call — a second, host-level way to keep a human in the loop.
 - `send_command` blocks obvious config and destructive commands.
-- `configure_device` defaults to `dry_run=True`.
-- Real config requires both `dry_run=False` and `confirm=True`.
-- Dangerous config lines such as `reload`, `erase`, `delete`, and `write erase` are blocked.
-- High-impact writes should stay human-confirmed — do not let an agent loop auto-approve
-  `configure_device` against a live device.
+- Dangerous config lines such as `reload`, `erase`, `delete`, and `write erase` are blocked — but
+  ordinary `no …` lines (e.g. removing a loopback) are **not**, which is why the confirmation-code
+  gate above is the real control.
 - Do not point this at production networks.
 
 ## Suggested Webinar Flow
@@ -385,8 +489,11 @@ This is a demo server, not a production change platform. It still has a few usef
 3. Run `get_ospf_neighbors` and `get_bgp_summary` against the mock lab.
 4. Switch `PACKET_CODERS_INVENTORY` to the EVE-NG inventory (the four-switch mesh above).
 5. Run the same tools against the real lab and show the full-mesh adjacencies.
-6. Demonstrate `configure_device` first as a dry run, then with `confirm=True` — add and
-   then remove a demo loopback, verifying it appears in OSPF.
+6. Demonstrate `configure_device` from a host that confirms tool calls (Claude Desktop / Code),
+   with the server started `PACKET_CODERS_ALLOW_WRITES=true`: dry-run first, then approve the real
+   change — add and remove a demo loopback, verifying it appears in the neighbors' routing tables
+   (as an `O` or `B` route, depending on whether you advertise it into OSPF or BGP). Keep the
+   Open WebUI / Ollama path write-disabled so the auto-executing agent can never push config.
 7. Optional: repeat the demo driven by a local Qwen3 model to show the same tools with no
    cloud API.
 
