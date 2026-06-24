@@ -51,7 +51,13 @@ class NetmikoDriver(NetworkDriver):
     def send_config(self, device: Device, commands: list[str]) -> str:
         connection = self._connect(device)
         try:
-            if device.enable_password:
+            # Many lab logins land in unprivileged exec (e.g. `Sw3>`), where
+            # `configure` is rejected and netmiko times out waiting for the
+            # `(config)#` prompt. Enter enable mode first when needed; enable()
+            # uses device.enable_password as the secret when set, and works with
+            # no secret when the device doesn't require one. Platforms without an
+            # enable mode (e.g. Junos) report check_enable_mode() True and skip it.
+            if hasattr(connection, "check_enable_mode") and not connection.check_enable_mode():
                 connection.enable()
             return str(connection.send_config_set(commands))
         finally:
