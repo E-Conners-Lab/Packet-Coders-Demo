@@ -23,7 +23,7 @@ No Python setup, no manual wiring. The code stays in the repo for you to read/ed
 
 ```bash
 git clone https://github.com/E-Conners-Lab/Packet-Coders-Demo.git
-cd packet-coders-mcp
+cd Packet-Coders-Demo
 docker compose up            # first run pulls images + the qwen3:8b model (a few minutes)
 ```
 
