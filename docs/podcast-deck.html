@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>From Chat to MCP — Presenter Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0a0e13; --bg-2:#0e141c; --panel:#121a24; --panel-2:#16202c;
+    --line:rgba(255,255,255,0.08); --line-2:rgba(255,255,255,0.14);
+    --ink:#e7eef6; --muted:#8a99ab; --faint:#5d6b7d;
+    --copper:#e8a04b; --copper-dim:#a9712f; --cyan:#54cdd6;
+    --full:#74dd8e; --warn:#f0c04b; --danger:#ef6f6f;
+    --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:'IBM Plex Sans',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:var(--sans); -webkit-font-smoothing:antialiased; overflow:hidden;
+  }
+  body::before{
+    content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:
+      radial-gradient(1100px 650px at 12% -8%, rgba(232,160,75,0.10), transparent 60%),
+      radial-gradient(900px 650px at 100% 8%, rgba(84,205,214,0.07), transparent 55%),
+      radial-gradient(1100px 850px at 50% 120%, rgba(232,160,75,0.05), transparent 60%);
+  }
+  body::after{
+    content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.016) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.016) 1px, transparent 1px);
+    background-size:48px 48px;
+    mask-image:radial-gradient(ellipse 120% 85% at 50% 0%, #000 35%, transparent 80%);
+  }
+  ::selection{ background:var(--copper); color:#14110b; }
+
+  /* ---- deck / slides ---- */
+  .deck{ position:fixed; inset:0; z-index:1; }
+  .slide{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; justify-content:center;
+    padding: clamp(40px,6.5vh,90px) clamp(44px,8vw,140px);
+    overflow-y:auto;
+    opacity:0; visibility:hidden; pointer-events:none;
+    transform:translateY(22px); transition:opacity .45s ease, transform .45s ease, visibility .45s;
+  }
+  .slide.active{ opacity:1; visibility:visible; pointer-events:auto; transform:none; }
+  .inner{ width:100%; max-width:1220px; margin:0 auto; }
+
+  .kicker{
+    font-family:var(--mono); font-size:clamp(11px,1.25vw,15px); letter-spacing:.3em;
+    text-transform:uppercase; color:var(--copper); display:flex; align-items:center; gap:14px;
+    margin-bottom:clamp(16px,2.8vh,30px);
+  }
+  .kicker::before{ content:""; width:46px; height:1px; background:var(--copper-dim); }
+
+  h1.title{
+    font-family:var(--mono); font-weight:700; letter-spacing:-0.02em; line-height:1.0; margin:0;
+    font-size:clamp(40px,6.6vw,86px);
+  }
+  h2.head{
+    font-family:var(--mono); font-weight:700; letter-spacing:-0.015em; line-height:1.05; margin:0;
+    font-size:clamp(30px,4.6vw,60px);
+  }
+  .ac{ color:var(--copper); } .cy{ color:var(--cyan); } .gr{ color:var(--full); }
+  .lead{
+    font-size:clamp(18px,2.3vw,29px); color:var(--muted); line-height:1.45;
+    max-width:34ch; margin:clamp(20px,3.2vh,36px) 0 0;
+  }
+  .lead.wide{ max-width:46ch; }
+  .lead b{ color:var(--ink); font-weight:600; }
+  .lead .ac{ color:var(--copper); font-weight:600; }
+
+  .points{ list-style:none; margin:clamp(22px,3.6vh,42px) 0 0; padding:0; display:grid; gap:clamp(12px,2.1vh,22px); }
+  .points.two{ grid-template-columns:1fr 1fr; column-gap:clamp(26px,5vw,68px); }
+  @media (max-width:820px){ .points.two{ grid-template-columns:1fr; } }
+  .points li{ font-size:clamp(17px,2.05vw,27px); color:var(--ink); display:flex; gap:15px; align-items:baseline; line-height:1.28; }
+  .points li .m{ font-family:var(--mono); color:var(--copper); font-size:.62em; flex:none; line-height:1.6; }
+  .points li b{ color:#fff; font-weight:600; }
+  .points li .sub{ display:block; color:var(--muted); font-size:.82em; margin-top:4px; font-weight:400; }
+  .points.mono li{ font-family:var(--mono); font-size:clamp(15px,1.85vw,24px); }
+
+  /* role / card grids */
+  .cards{ display:grid; grid-template-columns:repeat(3,1fr); gap:clamp(14px,1.8vw,22px); margin-top:clamp(22px,3.4vh,40px); }
+  @media (max-width:820px){ .cards{ grid-template-columns:1fr; } }
+  .card{
+    border:1px solid var(--line-2); border-radius:14px; padding:clamp(16px,2.2vw,24px); background:var(--panel);
+    position:relative;
+  }
+  .card .tag{
+    position:absolute; top:-11px; left:16px; font-family:var(--mono); font-size:10.5px;
+    letter-spacing:.12em; text-transform:uppercase; padding:3px 9px; border-radius:6px;
+    background:var(--panel-2); border:1px solid var(--line-2); color:var(--cyan);
+  }
+  .card h4{ margin:4px 0 6px; font-family:var(--mono); font-size:clamp(17px,1.7vw,21px); color:var(--ink); }
+  .card p{ margin:0; font-size:clamp(13.5px,1.25vw,16px); color:var(--muted); line-height:1.5; }
+  .card p .hl{ color:var(--copper); }
+
+  /* code / prompt blocks */
+  .cmd{
+    font-family:var(--mono); font-size:clamp(15px,1.65vw,23px); color:var(--ink);
+    background:#070b10; border:1px solid var(--line-2); border-left:3px solid var(--copper);
+    border-radius:11px; padding:clamp(14px,2vh,22px) clamp(16px,2.2vw,26px); margin-top:clamp(18px,2.8vh,32px);
+    overflow-x:auto; white-space:pre-wrap; line-height:1.5;
+  }
+  .cmd.prompt{ border-left-color:var(--cyan); }
+  .cmd .p{ color:var(--copper); } .cmd .v{ color:var(--cyan); } .cmd .c{ color:var(--faint); } .cmd .s{ color:var(--full); }
+  .cmd .you{ color:var(--cyan); font-weight:600; }
+
+  .out{
+    font-family:var(--mono); font-size:clamp(12.5px,1.25vw,17px); color:var(--muted); line-height:1.6;
+    background:#06090d; border:1px solid var(--line); border-radius:11px;
+    padding:clamp(12px,1.8vh,18px) clamp(14px,2vw,22px); margin-top:14px; overflow-x:auto; white-space:pre;
+  }
+  .out .full{ color:var(--full); } .out .o{ color:var(--copper); } .out .b{ color:var(--full); } .out .c{ color:var(--cyan); }
+
+  .note{ margin-top:clamp(18px,2.8vh,30px); font-size:clamp(14px,1.6vw,21px); color:var(--muted); line-height:1.5; }
+  .note .ok{ color:var(--full); font-family:var(--mono); }
+  .note b{ color:var(--ink); }
+  .narr{
+    margin-top:clamp(16px,2.4vh,26px); padding:clamp(12px,1.8vh,18px) clamp(14px,2vw,22px);
+    border:1px solid var(--line); border-left:3px solid var(--cyan); border-radius:0 11px 11px 0;
+    background:linear-gradient(180deg,var(--panel),var(--bg-2)); color:var(--ink);
+    font-size:clamp(14px,1.55vw,20px); line-height:1.5;
+  }
+  .narr .t{ font-family:var(--mono); font-size:.7em; letter-spacing:.12em; text-transform:uppercase; color:var(--cyan); display:block; margin-bottom:6px; }
+
+  .badge{
+    display:inline-flex; align-items:center; gap:8px; font-family:var(--mono); font-size:clamp(11px,1.1vw,14px);
+    color:var(--muted); border:1px solid var(--line-2); background:var(--panel); border-radius:999px; padding:5px 13px;
+  }
+  .badge .dot{ width:7px;height:7px;border-radius:50%;background:var(--full); }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:clamp(16px,2.4vh,28px); }
+
+  /* compare table */
+  table.cmp{ width:100%; border-collapse:collapse; font-size:clamp(13.5px,1.4vw,19px); margin-top:clamp(20px,3vh,34px); }
+  table.cmp th, table.cmp td{ text-align:left; padding:clamp(9px,1.4vh,15px) 14px; border-bottom:1px solid var(--line); vertical-align:top; }
+  table.cmp th{ font-family:var(--mono); color:var(--faint); font-weight:500; text-transform:uppercase; letter-spacing:.07em; font-size:.7em; }
+  table.cmp td b{ color:var(--ink); } table.cmp td{ color:var(--muted); }
+  table.cmp td .mono{ font-family:var(--mono); color:var(--copper); font-size:.92em; }
+  table.cmp tr td:first-child{ font-family:var(--mono); color:var(--cyan); white-space:nowrap; }
+
+  /* topology svg */
+  .topo{ width:100%; max-width:540px; margin:clamp(14px,2.4vh,30px) auto 0; }
+  .topo svg{ display:block; width:100%; height:auto; }
+
+  .route-legend{ display:flex; flex-wrap:wrap; gap:clamp(12px,2vw,28px); margin-top:clamp(14px,2.2vh,24px); font-family:var(--mono); }
+  .route-legend .rl{ display:flex; align-items:center; gap:9px; font-size:clamp(12px,1.3vw,17px); color:var(--muted); }
+  .route-legend .rl b{ width:1.85em;height:1.85em;flex:none;display:flex;align-items:center;justify-content:center;border-radius:7px;font-weight:700;font-size:.92em; }
+  .route-legend .rl b.c{ color:var(--cyan); background:rgba(84,205,214,.12); border:1px solid rgba(84,205,214,.4);}
+  .route-legend .rl b.o{ color:var(--copper); background:rgba(232,160,75,.12); border:1px solid rgba(232,160,75,.4);}
+  .route-legend .rl b.b{ color:var(--full); background:rgba(116,221,142,.12); border:1px solid rgba(116,221,142,.4);}
+
+  /* ---- chrome: progress, counter, controls ---- */
+  .progress{ position:fixed; top:0; left:0; height:3px; width:0; background:var(--copper); z-index:40; transition:width .45s ease; box-shadow:0 0 12px rgba(232,160,75,.6); }
+  .chrome{
+    position:fixed; left:0; right:0; bottom:0; z-index:30; display:flex; align-items:center; justify-content:center; gap:14px;
+    padding:14px; font-family:var(--mono); font-size:13px; color:var(--muted); pointer-events:none;
+    background:linear-gradient(180deg,transparent,rgba(7,11,16,.9));
+  }
+  .chrome .grp{ display:flex; align-items:center; gap:10px; pointer-events:auto; }
+  .chrome .btn{
+    cursor:pointer; color:var(--ink); background:var(--panel); border:1px solid var(--line-2); border-radius:9px;
+    width:38px;height:38px; display:flex;align-items:center;justify-content:center; font-size:17px; transition:all .15s;
+  }
+  .chrome .btn:hover{ border-color:var(--copper-dim); color:var(--copper); transform:translateY(-1px); }
+  .chrome .counter{ letter-spacing:.08em; min-width:64px; text-align:center; }
+  .chrome .counter b{ color:var(--copper); }
+  .chrome .timer{ min-width:96px; text-align:center; letter-spacing:.06em; }
+  .chrome .timer.run{ color:var(--full); } .chrome .timer.warn{ color:var(--warn); } .chrome .timer.over{ color:var(--danger); }
+  .chrome .timer b{ color:inherit; }
+  .chrome .seg{ color:var(--faint); }
+
+  /* top-left brand + slide time badge */
+  .topbar{ position:fixed; top:0; left:0; right:0; z-index:30; display:flex; align-items:center; gap:14px;
+    padding:14px clamp(20px,3vw,40px); font-family:var(--mono); font-size:12.5px; pointer-events:none; }
+  .brand{ color:var(--ink); font-weight:700; } .brand .s{ color:var(--copper); }
+  .topbar .seg-name{ color:var(--muted); letter-spacing:.05em; }
+  .topbar .stime{ margin-left:auto; color:var(--copper); border:1px solid var(--line-2); background:rgba(232,160,75,.07); border-radius:999px; padding:3px 11px; }
+
+  /* speaker notes drawer */
+  .notes{
+    position:fixed; left:0; right:0; bottom:0; z-index:50; max-height:42vh; overflow-y:auto;
+    background:rgba(7,11,16,.97); border-top:2px solid var(--copper); padding:22px clamp(24px,5vw,80px) 26px;
+    transform:translateY(110%); transition:transform .3s ease; box-shadow:0 -20px 50px rgba(0,0,0,.5);
+  }
+  .notes.show{ transform:none; }
+  .notes h5{ margin:0 0 8px; font-family:var(--mono); font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--copper); }
+  .notes .body{ font-size:16px; line-height:1.6; color:var(--ink); max-width:1000px; }
+  .notes .body b{ color:var(--cyan); }
+  .notes .warnote{ color:var(--warn); font-family:var(--mono); font-size:12px; margin-top:10px; }
+
+  /* help overlay */
+  .help{
+    position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center;
+    background:rgba(6,9,13,.92); backdrop-filter:blur(6px);
+  }
+  .help.show{ display:flex; }
+  .help .panel{ background:var(--panel); border:1px solid var(--line-2); border-radius:16px; padding:34px 40px; max-width:560px; width:90%; }
+  .help h3{ font-family:var(--mono); margin:0 0 18px; color:var(--copper); font-size:20px; }
+  .help table{ width:100%; border-collapse:collapse; font-size:15px; }
+  .help td{ padding:8px 6px; border-bottom:1px solid var(--line); color:var(--muted); }
+  .help kbd{ font-family:var(--mono); background:#070b10; border:1px solid var(--line-2); border-bottom-width:2px; border-radius:6px; padding:3px 9px; color:var(--ink); font-size:13px; }
+  .help .hint{ margin-top:16px; font-size:13px; color:var(--faint); }
+
+  /* intro hint pill */
+  .introhint{ position:fixed; bottom:64px; left:50%; transform:translateX(-50%); z-index:35;
+    font-family:var(--mono); font-size:13px; color:var(--muted); background:var(--panel); border:1px solid var(--line-2);
+    border-radius:999px; padding:8px 16px; transition:opacity .5s; }
+  .introhint b{ color:var(--copper); }
+
+  .demo-pill{ display:inline-flex; align-items:center; gap:9px; font-family:var(--mono); font-size:clamp(11px,1.1vw,14px);
+    color:var(--copper); border:1px solid rgba(232,160,75,.4); background:rgba(232,160,75,.08); border-radius:999px; padding:5px 13px; margin-bottom:14px; }
+  .gate-pill{ color:var(--danger); border-color:rgba(239,111,111,.4); background:rgba(239,111,111,.08); }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="topbar">
+  <span class="brand">Chat <span class="s">→</span> MCP</span>
+  <span class="seg-name" id="segName">Intro</span>
+  <span class="stime" id="sTime">⏱ 1m</span>
+</div>
+
+<div class="deck" id="deck">
+
+  <!-- 1 · TITLE -->
+  <section class="slide" data-seg="Intro" data-time="1m" data-notes="Open with a show of hands: 'who's pasted a config into ChatGPT?' Most hands go up — that's your in. You're not selling them on AI, you're moving them one step past where they already are. Don't read the slide; the arc IS the promise: by the end a model touches real gear with you holding the keys. ~60s, then go.">
+    <div class="inner">
+      <div class="kicker">A network engineer's path through AI</div>
+      <h1 class="title">From Chat <span class="cy">→</span><br>to <span class="ac">MCP</span>.</h1>
+      <p class="lead wide">Your AI already knows networking. Today we give it <b>hands</b> — tools to read your network and change it, with a human in the loop.</p>
+      <div class="row">
+        <span class="badge"><span class="dot"></span> 4× Arista EOS · OSPF + eBGP · live</span>
+        <span class="badge">⏱ ~18 min + demo</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 · COLD OPEN -->
+  <section class="slide" data-seg="The hook" data-time="1m" data-notes="Validate chat first — don't trash it or you lose the AI-skeptics in the room. The whole pivot rides on one word: 'but YOU were the hands.' The friction was never the model's intelligence, it's the integration tax of being the copy-paste bus. You're describing a workflow they already live, which is what keeps the skeptics leaning in.">
+    <div class="inner">
+      <div class="kicker">The hook</div>
+      <h2 class="head">You've already asked ChatGPT<br>about a <span class="ac">down BGP session</span>.</h2>
+      <p class="lead wide">It gave a great answer. But notice: <b>you</b> were the hands — you copied output in, read the fix, typed it back at the CLI.</p>
+      <p class="note">The model is smart, but it's <b>behind glass</b>. It can't see your network, and it can't touch it. <span class="ac">MCP takes the glass away.</span></p>
+    </div>
+  </section>
+
+  <!-- 3 · CEILING OF CHAT -->
+  <section class="slide" data-seg="Why not just chat" data-time="2m" data-notes="Limit #3 is the entire talk compressed: every benefit later flows from removing the human as the data bus. Name the objection before they do — 'some of you are thinking, I'll just write Python' — then concede it's valid but brittle (the question changes, the regex doesn't). Naming it first buys credibility. This is setup, not payoff: keep it moving.">
+    <div class="inner">
+      <div class="kicker">The ceiling of plain chat</div>
+      <h2 class="head">Three things chat <span class="ac">can't</span> do</h2>
+      <ul class="points">
+        <li><span class="m">01</span><span><b>No live data.</b><span class="sub">It knows networking in general — not your SW3's neighbor table at 9am today.</span></span></li>
+        <li><span class="m">02</span><span><b>No actions.</b><span class="sub">It can write a perfect <code>router bgp</code> block — it can't apply it. No hands on the keyboard.</span></span></li>
+        <li><span class="m">03</span><span><b>You are the integration.</b><span class="sub">Copy from switch → paste to chat → read → paste back. Every manual loop is where mistakes live.</span></span></li>
+      </ul>
+      <p class="note"><b>"I'll just write a script."</b> Sure — now you maintain regex parsers. <span class="ac">MCP is the middle path:</span> flexible like chat, with safe, reusable actions.</p>
+    </div>
+  </section>
+
+  <!-- 4 · WHAT MCP IS -->
+  <section class="slide" data-seg="What MCP is" data-time="2m" data-notes="Let the USB-C analogy breathe — it does the work, don't over-explain it. Pre-empt the obvious question: 'is this an Anthropic lock-in thing?' No — it's an open spec others are adopting, vendor-neutral. For a senior room that's the line that earns trust. Then hand straight to the three roles, which is where the real misconception gets fixed.">
+    <div class="inner">
+      <div class="kicker">What MCP actually is</div>
+      <h2 class="head"><span class="ac">USB-C</span> for AI tools.</h2>
+      <p class="lead wide">Before USB-C, every device had its own connector. Before MCP, every AI app wired up tools its own way.</p>
+      <p class="note"><b>MCP is the standard plug.</b> Build a tool once — any MCP-aware app can use it. You're not building a brittle one-off; you're <span class="ac">publishing a capability.</span></p>
+    </div>
+  </section>
+
+  <!-- 5 · THREE ROLES -->
+  <section class="slide" data-seg="The 3 roles" data-time="2m" data-notes="This is the slide people get MCP wrong on. The misconception you're killing: 'the model logs into my switches.' It does NOT — the host does; the model only decides which tool. Analogy that lands: the model is the driver naming a destination, the host is the car that actually drives. The 'swap any piece' point is what makes a security lead comfortable — your tools aren't married to one vendor's model. Slow down and let this one sink in.">
+    <div class="inner">
+      <div class="kicker">The one idea that unlocks all of it</div>
+      <h2 class="head">Three roles — and the <span class="ac">model never speaks MCP</span>.</h2>
+      <div class="cards">
+        <div class="card"><span class="tag">tools</span><h4>MCP Server</h4><p>Typed Python functions that know how to <span class="hl">SSH to your switches</span> and run commands.</p></div>
+        <div class="card"><span class="tag">app</span><h4>Host</h4><p>Claude Desktop / Code / Open WebUI. Runs the <span class="hl">tool-calling loop</span> and does the plumbing.</p></div>
+        <div class="card"><span class="tag">brain</span><h4>Model</h4><p>Claude or local Qwen. Just sees "here are tools" and <span class="hl">picks one</span>. Never touches the protocol.</p></div>
+      </div>
+      <p class="note">Because they're separate, <b>you can swap any piece.</b> Same tools work with a cloud model or a fully local one. Add a tool → every host gets it for free.</p>
+    </div>
+  </section>
+
+  <!-- 6 · SHOW THE CODE -->
+  <section class="slide" data-seg="What a tool is" data-time="1m" data-notes="Best done live — alt-tab to server.py; the 'wait, that's it?' reaction is the goal. The non-obvious point: your moat as a neteng isn't Python, it's knowing WHICH show commands matter and how to read them — and that expertise goes straight into the docstring. So you're not becoming a developer, you're encoding what you already know. Most skippable slide if you're tight on time. If asked how long to write one: minutes, once the service layer exists.">
+    <div class="inner">
+      <div class="kicker">A tool is just a function</div>
+      <h2 class="head">This is the <span class="ac">entire</span> definition of a tool.</h2>
+      <div class="cmd"><span class="c">@mcp.tool</span>
+<span class="p">async def</span> get_bgp_summary(device_name: <span class="v">str</span>) -> dict:
+    <span class="s">"""Read BGP summary from a lab device using
+    the right command for its platform."""</span>
+    <span class="p">return</span> lab.get_bgp_summary(device_name)</div>
+      <p class="note">The <b>docstring</b> is what the model reads to decide when to call it. Writing tools is mostly <span class="ac">writing good documentation</span>. The networking lives in a normal service layer behind it.</p>
+    </div>
+  </section>
+
+  <!-- 7 · WHY NETWORK ENGINEERS -->
+  <section class="slide" data-seg="Why neteng" data-time="2m" data-notes="Make it personal — name a real 2am page (every adjacency on a 12-node fabric, a flap you chased for an hour). The sleeper feature here is per-platform: the model doesn't memorize EOS vs IOS vs Junos syntax — the TOOL encodes it — so one English question works across a mixed-vendor estate. Pure chat can never do that. This is where you've earned the demo: transition with 'let me stop describing it and just show you.'">
+    <div class="inner">
+      <div class="kicker">Why this fits networking like a glove</div>
+      <h2 class="head">Our day is already <span class="ac">tool-shaped</span>.</h2>
+      <p class="lead wide">Go look at a thing → interpret it → maybe change one thing → verify. That's <b>exactly</b> what a tool-calling model is good at.</p>
+      <ul class="points mono" style="margin-top:clamp(18px,2.8vh,32px)">
+        <li><span class="m">›</span> "Are all my OSPF adjacencies up?"</li>
+        <li><span class="m">›</span> "Which BGP sessions are flapping?"</li>
+        <li><span class="m">›</span> "Did that change propagate to the other switches?"</li>
+      </ul>
+      <p class="note">Ask once. It fans out across every device, reads the <b>right command per platform</b> — EOS vs IOS vs Junos — and gives you the synthesized answer.</p>
+    </div>
+  </section>
+
+  <!-- 8 · SAFETY PREVIEW -->
+  <section class="slide" data-seg="The safety line" data-time="1m" data-notes="This slide decides whether anyone would run it at work — give it weight. The framing that disarms 'I'd never let AI near prod': the model has read access like a junior with show privileges and ZERO change authority without you. Pre-empt the sharp question — 'what if it hallucinates a change or gets jailbroken?' — it still can't apply it, because the approval code never enters its context. Tell them to watch for this exact moment in demo 5; you're about to prove it.">
+    <div class="inner">
+      <div class="kicker">The line that makes it usable on real gear</div>
+      <h2 class="head"><span class="gr">Reads open.</span> <span class="ac">Writes gated.</span></h2>
+      <ul class="points">
+        <li><span class="m">✓</span><span>The model can <b>look at everything</b>, all day.</span></li>
+        <li><span class="m">🔒</span><span>To <b>change</b> anything, a human approves — and the model <b>can't approve its own change</b>.</span></li>
+        <li><span class="m">🔒</span><span>The confirm code prints to the <b>server console only</b> — never back to the model.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 9 · MCP vs MCPo — transition -->
+  <section class="slide" data-seg="MCP vs MCPo" data-time="0.5m" data-notes="Breath slide — but use it to kill the #1 confusion up front: the names look like versions (people hear 'MCP mark-o'), but mcpo is a SEPARATE proxy tool, not a newer MCP. Say that out loud before you explain anything. 10 seconds, then move.">
+    <div class="inner">
+      <div class="kicker">The part everyone asks about</div>
+      <h2 class="head">Standard <span class="ac">MCP</span> &nbsp;vs.&nbsp; <span class="cy">MCPo</span></h2>
+      <p class="lead wide">Not two sets of tools. <b>Two doorways</b> to the same ones.</p>
+    </div>
+  </section>
+
+  <!-- 10 · STANDARD MCP -->
+  <section class="slide" data-seg="Standard MCP" data-time="1.5m" data-notes="Demystify stdio for a neteng crowd: it's just the host running your tool server as a local program and piping text in and out — same shape as any CLI tool, nothing exotic. 'Session-based' matters only because host and server keep state across calls. Don't over-invest here — the room cares more about the next slide, because mcpo is the local / no-cloud path. If asked about remote MCP: yes, over HTTP, but desktop use is mostly stdio.">
+    <div class="inner">
+      <div class="kicker">Doorway 1 — the native protocol</div>
+      <h2 class="head">Standard <span class="ac">MCP</span></h2>
+      <ul class="points">
+        <li><span class="m">›</span><span>The <b>native protocol</b>. Claude Desktop &amp; Claude Code speak it directly.</span></li>
+        <li><span class="m">›</span><span><b>stdio</b> — host launches the tool server as a local subprocess, talks over stdin/stdout.</span></li>
+        <li><span class="m">›</span><span><b>or HTTP</b> for remote servers. Either way it's <b>session-based</b> — a live conversation.</span></li>
+      </ul>
+      <p class="note"><b>If your client speaks MCP, this is all you need.</b> Cleanest path, fewest moving parts.</p>
+    </div>
+  </section>
+
+  <!-- 11 · MCPo -->
+  <section class="slide" data-seg="MCPo" data-time="1.5m" data-notes="Lead with the benefit the slide buries: mcpo is what lets this run with NO cloud and NO API bill — Open WebUI + a local model + mcpo is a fully offline, on-prem stack, which is the version a security team will actually sign off on. Mechanics second, that benefit first. The /docs page is a quiet trust-builder: you can curl your own tools to test them with no AI in the loop at all — great for the 'how do I know it's safe' crowd.">
+    <div class="inner">
+      <div class="kicker">Doorway 2 — the bridge</div>
+      <h2 class="head"><span class="cy">MCPo</span> = MCP → OpenAPI</h2>
+      <p class="lead wide">Lots of apps — <b>Open WebUI</b> especially — don't speak MCP. They speak <b>OpenAPI</b> (REST/Swagger), which nearly everything understands.</p>
+      <ul class="points" style="margin-top:clamp(16px,2.4vh,26px)">
+        <li><span class="m">+</span><span><b>Any OpenAPI app can use your tools</b> — not just MCP clients.<span class="sub">You rewrite nothing — same Python functions; mcpo just translates.</span></span></li>
+        <li><span class="m">+</span><span><b>Free interactive docs</b> — a <code>/docs</code> page, "try it" in a browser, or <code>curl</code> it.</span></li>
+        <li><span class="m">+</span><span><b>Standard HTTP</b> — API-key auth, logging, reverse proxy.</span></li>
+        <li><span class="m">+</span><span><b>Many servers, one port</b> — lab tools at <code>/lab</code>, filesystem at <code>/filesystem</code>.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 12 · MCP vs MCPo — table -->
+  <section class="slide" data-seg="Which doorway" data-time="1m" data-notes="Give them the decision rule in one breath: 'does my chat app speak MCP? yes → MCP, no → mcpo.' That's the whole thing to remember. Be honest that the extra hop matters to nobody at read-tool scale — say it, don't oversell. If asked where to start: Claude Desktop + MCP is the 5-minute path; reach for mcpo when you want it local or shared across a team.">
+    <div class="inner">
+      <div class="kicker">Which doorway, when</div>
+      <h2 class="head">Same tools. <span class="ac">Pick the door.</span></h2>
+      <table class="cmp">
+        <thead><tr><th></th><th>Standard MCP</th><th>MCPo (OpenAPI)</th></tr></thead>
+        <tbody>
+          <tr><td>Use when</td><td><b>Client speaks MCP</b><br>Claude Desktop / Code</td><td><b>Client speaks REST</b><br>Open WebUI, scripts, no-cloud stack</td></tr>
+          <tr><td>Transport</td><td><span class="mono">stdio</span> or HTTP, session-based</td><td>plain HTTP, request/response</td></tr>
+          <tr><td>Bonus</td><td>fewest moving parts</td><td><span class="mono">/docs</span>, API-key auth, curl-able, multi-server</td></tr>
+          <tr><td>Trade-off</td><td>client must support MCP</td><td>one extra hop</td></tr>
+        </tbody>
+      </table>
+      <p class="note">mcpo isn't a different set of tools — it's a <span class="ac">different doorway to the same ones.</span></p>
+    </div>
+  </section>
+
+  <!-- 13 · THE LAB -->
+  <section class="slide" data-seg="The lab" data-time="1m" data-notes="Don't teach OSPF/BGP — this room owns it. Point at ONE thing: two protocols at once means the route table proves propagation by its source letter (O vs B), so when the demo change appears you can literally SEE which protocol carried it. That visual payoff is the entire reason the lab is wired this way. Plant the seed now: 'watch the C/O/B letters in a few minutes — that's the proof the change actually took.'">
+    <div class="inner">
+      <div class="kicker">What the model is about to read</div>
+      <h2 class="head">Four <span class="ac">Arista EOS</span> switches · OSPF + eBGP</h2>
+      <div class="topo">
+        <svg viewBox="0 0 560 430" role="img" aria-label="Four-switch full mesh">
+          <defs>
+            <radialGradient id="ng" cx="50%" cy="35%" r="70%"><stop offset="0%" stop-color="#1c2937"/><stop offset="100%" stop-color="#0d141d"/></radialGradient>
+          </defs>
+          <g stroke="var(--copper-dim)" stroke-width="2" opacity="0.85">
+            <line x1="280" y1="78" x2="92" y2="252"/><line x1="280" y1="78" x2="468" y2="252"/>
+            <line x1="280" y1="78" x2="280" y2="376"/><line x1="92" y1="252" x2="468" y2="252"/>
+            <line x1="92" y1="252" x2="280" y2="376"/><line x1="468" y1="252" x2="280" y2="376"/>
+          </g>
+          <g stroke="var(--copper)" stroke-width="2" stroke-dasharray="4 92" opacity="0.85">
+            <line x1="280" y1="78" x2="92" y2="252"><animate attributeName="stroke-dashoffset" from="0" to="-96" dur="2.6s" repeatCount="indefinite"/></line>
+            <line x1="280" y1="78" x2="468" y2="252"><animate attributeName="stroke-dashoffset" from="0" to="-96" dur="2.9s" repeatCount="indefinite"/></line>
+            <line x1="280" y1="78" x2="280" y2="376"><animate attributeName="stroke-dashoffset" from="0" to="-96" dur="3.2s" repeatCount="indefinite"/></line>
+            <line x1="92" y1="252" x2="468" y2="252"><animate attributeName="stroke-dashoffset" from="0" to="-96" dur="2.4s" repeatCount="indefinite"/></line>
+            <line x1="92" y1="252" x2="280" y2="376"><animate attributeName="stroke-dashoffset" from="0" to="-96" dur="3.0s" repeatCount="indefinite"/></line>
+            <line x1="468" y1="252" x2="280" y2="376"><animate attributeName="stroke-dashoffset" from="0" to="-96" dur="2.7s" repeatCount="indefinite"/></line>
+          </g>
+          <g font-family="IBM Plex Mono, monospace">
+            <g><rect x="232" y="44" width="96" height="56" rx="11" fill="url(#ng)" stroke="var(--copper)" stroke-width="1.4"/>
+            <text x="280" y="69" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">SW1</text>
+            <text x="280" y="87" text-anchor="middle" font-size="10" fill="var(--cyan)">10.255.0.1 · 65001</text></g>
+            <g><rect x="44" y="224" width="96" height="56" rx="11" fill="url(#ng)" stroke="var(--copper)" stroke-width="1.4"/>
+            <text x="92" y="249" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">SW2</text>
+            <text x="92" y="267" text-anchor="middle" font-size="10" fill="var(--cyan)">10.255.0.2 · 65002</text></g>
+            <g><rect x="420" y="224" width="96" height="56" rx="11" fill="url(#ng)" stroke="var(--copper)" stroke-width="1.4"/>
+            <text x="468" y="249" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">SW3</text>
+            <text x="468" y="267" text-anchor="middle" font-size="10" fill="var(--cyan)">10.255.0.3 · 65003</text></g>
+            <g><rect x="232" y="348" width="96" height="56" rx="11" fill="url(#ng)" stroke="var(--copper)" stroke-width="1.4"/>
+            <text x="280" y="373" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">SW4</text>
+            <text x="280" y="391" text-anchor="middle" font-size="10" fill="var(--cyan)">10.255.0.4 · 65004</text></g>
+          </g>
+          <g>
+            <circle cx="318" cy="54" r="3.5" fill="var(--full)"><animate attributeName="opacity" values="1;0.3;1" dur="2.2s" repeatCount="indefinite"/></circle>
+            <circle cx="130" cy="234" r="3.5" fill="var(--full)"><animate attributeName="opacity" values="1;0.3;1" dur="2.5s" repeatCount="indefinite"/></circle>
+            <circle cx="506" cy="234" r="3.5" fill="var(--full)"><animate attributeName="opacity" values="1;0.3;1" dur="2.8s" repeatCount="indefinite"/></circle>
+            <circle cx="318" cy="358" r="3.5" fill="var(--full)"><animate attributeName="opacity" values="1;0.3;1" dur="2.4s" repeatCount="indefinite"/></circle>
+          </g>
+        </svg>
+      </div>
+      <div class="route-legend" style="justify-content:center">
+        <span class="rl"><b class="c">C</b> local links + loopback</span>
+        <span class="rl"><b class="o">O</b> remote transit /24s (OSPF)</span>
+        <span class="rl"><b class="b">B</b> remote loopbacks (eBGP)</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14 · DEMO TITLE -->
+  <section class="slide" data-seg="DEMO" data-time="0.5m" data-notes="This is where demos die — do the logistics BEFORE you talk: confirm the right window is shared, the server console is visible in a corner, the lab is clean. Say 'everything I type is plain English, no commands' so they register the model is choosing the tools, not you. Fallback plan: if the lab is down, the next slides have the real outputs — narrate them as 'here's exactly what you'd see' and keep your composure; nobody remembers a graceful fallback.">
+    <div class="inner">
+      <div class="kicker">Live</div>
+      <h1 class="title">The <span class="ac">demo</span>.</h1>
+      <p class="lead wide">Everything from here, I type in <b>plain English</b>. The model picks the tools.</p>
+      <div class="row"><span class="badge"><span class="dot"></span> switch to Claude Desktop / Code now</span></div>
+    </div>
+  </section>
+
+  <!-- 15 · DEMO 1 -->
+  <section class="slide" data-seg="Demo · inventory" data-time="0.5m" data-notes="The teaching beat: I said 'my lab' — not an IP, not a command — and it mapped intent to the right tool. Point at SW1–SW4 (real SSH) vs the mock devices so they trust it's hitting real gear. Keep it fast, it's the warm-up. If the model happens to pick an odd tool, don't panic — that's a live teachable moment about how the docstring drives the choice.">
+    <div class="inner">
+      <span class="demo-pill">DEMO 1 · list_lab_devices</span>
+      <h2 class="head">"What's even in this lab?"</h2>
+      <div class="cmd prompt"><span class="you">you ›</span> What devices are in my lab?</div>
+      <div class="out">SW1  arista_eos  ssh   10.255.0.1  (65001)
+SW2  arista_eos  ssh   10.255.0.2  (65002)
+SW3  arista_eos  ssh   10.255.0.3  (65003)
+SW4  arista_eos  ssh   10.255.0.4  (65004)</div>
+      <p class="note">I never named a command or an IP — <span class="ac">it picked the tool on its own.</span></p>
+    </div>
+  </section>
+
+  <!-- 16 · DEMO 2 -->
+  <section class="slide" data-seg="Demo · health" data-time="1m" data-notes="Quantify the manual version out loud: '4 switches, two protocols — that's 8-plus SSH sessions and a lot of squinting, and I just did it in one sentence.' The wow is the concurrency: it's not walking them one at a time. This is the single most relatable everyday win in the whole demo — pause and let it land before you move on.">
+    <div class="inner">
+      <span class="demo-pill">DEMO 2 · run_health_check</span>
+      <h2 class="head">"Is the control plane healthy?"</h2>
+      <div class="cmd prompt"><span class="you">you ›</span> Run a health check across the whole lab — is OSPF and BGP healthy everywhere?</div>
+      <div class="out"><span class="full">✓</span> SW1  healthy   OSPF 3 · BGP 3
+<span class="full">✓</span> SW2  healthy   OSPF 3 · BGP 3
+<span class="full">✓</span> SW3  healthy   OSPF 3 · BGP 3
+<span class="full">✓</span> SW4  healthy   OSPF 3 · BGP 3</div>
+      <p class="note">One sentence → <b>all four switches, concurrently</b>, right commands per platform, summarized. <span class="ac">That's a round of SSH sessions, gone.</span></p>
+    </div>
+  </section>
+
+  <!-- 17 · DEMO 3 -->
+  <section class="slide" data-seg="Demo · adjacencies" data-time="1m" data-notes="The insight past 'it works': you asked a yes/no question — 'are they all up?' — and got a yes/no answer, not a wall of CLI to parse. That's the cognitive-load drop that actually changes your day. These are real numbers from SW1; if the live output drifts (uptime, counters), just say 'live network — the numbers move,' which actually reinforces it's real.">
+    <div class="inner">
+      <span class="demo-pill">DEMO 3 · get_ospf_neighbors + get_bgp_summary</span>
+      <h2 class="head">"Prove SW1's adjacencies."</h2>
+      <div class="cmd prompt"><span class="you">you ›</span> Show me SW1's OSPF neighbors and BGP summary. Are they all up?</div>
+      <div class="out">OSPF  10.255.0.2  <span class="full">FULL</span>  10.12.12.2  Et1
+      10.255.0.3  <span class="full">FULL</span>  10.13.13.3  Et2
+      10.255.0.4  <span class="full">FULL</span>  10.14.14.4  Et3
+BGP   65002  10.12.12.2  <span class="full">Estab</span>  3/3
+      65003  10.13.13.3  <span class="full">Estab</span>  3/3
+      65004  10.14.14.4  <span class="full">Estab</span>  3/3</div>
+      <p class="note">Two tools, one question — read back <span class="ac">in English</span>, not columns.</p>
+    </div>
+  </section>
+
+  <!-- 18 · DEMO 4 -->
+  <section class="slide" data-seg="Demo · read tool" data-time="0.5m" data-notes="This slide exists to answer the skeptic before they raise their hand: 'what if it runs something destructive?' Show the guardrail — send_command rejects config and destructive commands at the door, so even the catch-all tool is read-only. If you're feeling bold: ask it to run a config line live and let the room watch it get blocked. That sets up the write-gate slide perfectly.">
+    <div class="inner">
+      <span class="demo-pill">DEMO 4 · send_command (read-only)</span>
+      <h2 class="head">"A targeted question."</h2>
+      <div class="cmd prompt"><span class="you">you ›</span> On SW3, what's the route to the other switches' loopbacks?</div>
+      <div class="out"><span class="b">B</span>  10.255.0.1/32  via 10.13.13.1   (eBGP)
+<span class="b">B</span>  10.255.0.2/32  via 10.23.23.2   (eBGP)
+<span class="b">B</span>  10.255.0.4/32  via 10.34.34.4   (eBGP)</div>
+      <p class="note">The catch-all read tool <b>blocks config &amp; destructive commands at the door.</b> <span class="ac">It can look; it can't break.</span></p>
+    </div>
+  </section>
+
+  <!-- 19 · DEMO 5 — the money shot -->
+  <section class="slide" data-seg="Demo · the change" data-time="1.5m" data-notes="Slow WAY down — this is the 90 seconds the whole talk was built to reach. The beat that matters: pause the instant the model STOPS and asks for a code. Physically point to the code appearing in your terminal, NOT the chat. Then say it plainly: 'this code is in my terminal, the model never sees it, so it cannot approve itself — even if it were compromised.' That one sentence is what they walk out repeating. Then apply it.">
+    <div class="inner">
+      <span class="demo-pill gate-pill">DEMO 5 · configure_device · human-gated ★</span>
+      <h2 class="head">A <span class="ac">real change</span> — with a human gate.</h2>
+      <div class="cmd prompt"><span class="you">you ›</span> Add loopback 99 (10.99.99.99/32) on SW1, advertise it into OSPF, and confirm the others learn it.</div>
+      <ul class="points" style="margin-top:clamp(14px,2.2vh,24px)">
+        <li><span class="m">1</span><span>Model <b>proposes</b> the config — and <b>stops</b>. A one-time code prints to my <b>server console only.</b></span></li>
+        <li><span class="m">2</span><span><b>I</b> read the code off the console and hand it back. <span class="ac">The model never sees it — it can't self-approve.</span></span></li>
+        <li><span class="m">3</span><span>Applied. Now verify it propagated.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 20 · DEMO 5 verify + cleanup -->
+  <section class="slide" data-seg="Demo · verify" data-time="1m" data-notes="Point at the O on the route and call back to the lab slide: 'OSPF carried it, exactly as I predicted — if I'd originated it in BGP it'd be a B.' That callback is what proves this is live, not staged. Always run the cleanup on camera — it shows discipline and resets for next time. The local-Qwen flex is optional: only mention it if you have time and want to hammer the no-cloud point home.">
+    <div class="inner">
+      <span class="demo-pill gate-pill">DEMO 5 · verify &amp; clean up</span>
+      <h2 class="head">Watch it <span class="gr">propagate</span>.</h2>
+      <div class="cmd prompt"><span class="you">you ›</span> Does SW2 have a route to 10.99.99.99 now?</div>
+      <div class="out"><span class="o">O</span>  10.99.99.99/32  via 10.12.12.1   (OSPF, from SW1)  ✓ learned</div>
+      <div class="cmd prompt"><span class="you">you ›</span> Now remove loopback 99 from SW1.   <span class="c">→ same gate, confirm, gone</span></div>
+      <p class="note">Leave the lab as I found it. <span class="ac">Optional flex:</span> this whole demo also runs on a <b>local Qwen</b> via Open WebUI + mcpo — zero cloud.</p>
+    </div>
+  </section>
+
+  <!-- 21 · CLOSE -->
+  <section class="slide" data-seg="Close" data-time="1m" data-notes="No new material — reassert the arc and give exactly ONE next action: stand up read-only tools against a lab this week. The anti-overwhelm message is the point; most people freeze at 'where do I even start.' This is your call-to-action moment if you're pointing them at the repo. End on the human-in-the-loop line — that's the trust note you want them carrying out the door.">
+    <div class="inner">
+      <div class="kicker">Where to start</div>
+      <h2 class="head">Don't boil the ocean.<br>Start <span class="ac">read-only</span>, on a lab.</h2>
+      <ul class="points">
+        <li><span class="m">→</span><span>Chat is smart but behind glass. <b>MCP gives the model tools.</b></span></li>
+        <li><span class="m">→</span><span>Standard plug: <b>build once, use everywhere</b> — Desktop, Code, or local via mcpo.</span></li>
+        <li><span class="m">→</span><span><b>A human approves every change.</b> That's what makes it real.</span></li>
+      </ul>
+      <p class="note">It's open source — clone it, point it at your own lab, and you'll have a local model <span class="ac">reading your network in ~5 minutes.</span></p>
+    </div>
+  </section>
+
+  <!-- 22 · REFERENCE CARD -->
+  <section class="slide" data-seg="Reference" data-time="0.5m" data-notes="Leave this up through Q&A so the recall table stays visible. Have answers ready for the four that always come: (1) cost — read tools are cheap, you're sending small show output, not whole configs; (2) which models — any tool-calling model, local Qwen works fine; (3) is it prod-ready — this is a demo server, the pattern is real but harden auth and audit logging first; (4) multi-vendor — yes, the tool encodes the per-platform command. The mcpo one-liner is your reset if anyone's still fuzzy.">
+    <div class="inner">
+      <div class="kicker">Keep on screen for Q&amp;A</div>
+      <h2 class="head">Quick reference</h2>
+      <table class="cmp">
+        <thead><tr><th>Tool</th><th>R/W</th><th>The everyday question</th></tr></thead>
+        <tbody>
+          <tr><td>list_lab_devices</td><td>read</td><td>"What's in my lab?"</td></tr>
+          <tr><td>run_health_check</td><td>read</td><td>"Is OSPF/BGP healthy everywhere?"</td></tr>
+          <tr><td>get_ospf_neighbors</td><td>read</td><td>"Are my adjacencies FULL?"</td></tr>
+          <tr><td>get_bgp_summary</td><td>read</td><td>"Are my sessions established?"</td></tr>
+          <tr><td>send_command</td><td>read*</td><td>any targeted show (*blocks config)</td></tr>
+          <tr><td>configure_device</td><td><b style="color:var(--copper)">write</b></td><td>"make this change" → <b>human confirms</b></td></tr>
+        </tbody>
+      </table>
+      <p class="note"><b>MCP</b> = native protocol for MCP clients (Desktop/Code). <b>mcpo</b> = same tools over OpenAPI/REST for everything else (Open WebUI, local).</p>
+    </div>
+  </section>
+
+</div>
+
+<div class="introhint" id="introhint">Press <b>→</b> to advance · <b>?</b> for all keys</div>
+
+<div class="chrome">
+  <div class="grp"><div class="btn" id="prev" title="Previous (←)">‹</div>
+  <div class="counter"><b id="cur">1</b> <span class="seg">/</span> <span id="total">22</span></div>
+  <div class="btn" id="next" title="Next (→)">›</div></div>
+  <div class="grp"><div class="timer" id="timer" title="Start/stop talk timer (T)">⏱ 00:00</div></div>
+  <div class="grp"><div class="btn" id="notesBtn" title="Speaker notes (N)">📝</div>
+  <div class="btn" id="fsBtn" title="Fullscreen (F)">⛶</div></div>
+</div>
+
+<div class="notes" id="notes">
+  <h5>Speaker notes</h5>
+  <div class="body" id="notesBody"></div>
+  <div class="warnote">⚠ Visible to your audience when screen-sharing — use on a second monitor, or as a memory jog before you share.</div>
+</div>
+
+<div class="help" id="help">
+  <div class="panel">
+    <h3>Keyboard</h3>
+    <table>
+      <tr><td><kbd>→</kbd> <kbd>Space</kbd></td><td>Next slide</td></tr>
+      <tr><td><kbd>←</kbd></td><td>Previous slide</td></tr>
+      <tr><td><kbd>Home</kbd> / <kbd>End</kbd></td><td>First / last slide</td></tr>
+      <tr><td><kbd>F</kbd></td><td>Fullscreen (do this before screen-sharing)</td></tr>
+      <tr><td><kbd>N</kbd></td><td>Speaker notes drawer</td></tr>
+      <tr><td><kbd>T</kbd></td><td>Start / pause the talk timer</td></tr>
+      <tr><td><kbd>R</kbd></td><td>Reset timer</td></tr>
+      <tr><td><kbd>?</kbd></td><td>This help</td></tr>
+    </table>
+    <p class="hint">Tip: press <kbd>F</kbd> for fullscreen, then share that window in Zoom. Click the right half of a slide to advance, left half to go back.</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var i = 0, total = slides.length;
+  document.getElementById('total').textContent = total;
+
+  var progress = document.getElementById('progress');
+  var curEl = document.getElementById('cur');
+  var segName = document.getElementById('segName');
+  var sTime = document.getElementById('sTime');
+  var notes = document.getElementById('notes');
+  var notesBody = document.getElementById('notesBody');
+  var introhint = document.getElementById('introhint');
+
+  function render(){
+    slides.forEach(function(s,n){ s.classList.toggle('active', n===i); });
+    curEl.textContent = i+1;
+    progress.style.width = ((i)/(total-1)*100) + '%';
+    var s = slides[i];
+    segName.textContent = s.getAttribute('data-seg') || '';
+    var t = s.getAttribute('data-time'); sTime.textContent = t ? '⏱ '+t : '';
+    notesBody.textContent = s.getAttribute('data-notes') || '— no notes —';
+    if(i>0 && introhint){ introhint.style.opacity = '0'; setTimeout(function(){ if(introhint) introhint.style.display='none'; }, 600); }
+  }
+  function go(n){ i = Math.max(0, Math.min(total-1, n)); render(); }
+  function next(){ go(i+1); } function prev(){ go(i-1); }
+
+  document.getElementById('next').onclick = next;
+  document.getElementById('prev').onclick = prev;
+
+  // click zones (ignore clicks on chrome/notes/help)
+  document.getElementById('deck').addEventListener('click', function(e){
+    var x = e.clientX, w = window.innerWidth;
+    if(x > w*0.5) next(); else prev();
+  });
+
+  // fullscreen
+  function fs(){ if(!document.fullscreenElement){ document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen(); } else { document.exitFullscreen&&document.exitFullscreen(); } }
+  document.getElementById('fsBtn').onclick = fs;
+
+  // notes
+  function toggleNotes(){ notes.classList.toggle('show'); }
+  document.getElementById('notesBtn').onclick = toggleNotes;
+
+  // timer
+  var tEl = document.getElementById('timer'), running=false, start=0, elapsed=0, tick=null;
+  function fmt(ms){ var s=Math.floor(ms/1000); var m=Math.floor(s/60); s=s%60; return '⏱ '+(m<10?'0':'')+m+':'+(s<10?'0':'')+s; }
+  function update(){ var ms = elapsed + (running ? (performance.now()-start) : 0); tEl.textContent = fmt(ms);
+    var mins = ms/60000; tEl.classList.remove('run','warn','over');
+    if(mins>=20) tEl.classList.add('over'); else if(mins>=15) tEl.classList.add('warn'); else if(running) tEl.classList.add('run');
+  }
+  function toggleTimer(){ if(running){ elapsed += performance.now()-start; running=false; } else { start=performance.now(); running=true; } update(); }
+  function resetTimer(){ running=false; elapsed=0; update(); }
+  tEl.onclick = toggleTimer;
+  tick = setInterval(update, 500); update();
+
+  // help
+  var help = document.getElementById('help');
+  function toggleHelp(){ help.classList.toggle('show'); }
+  help.onclick = function(e){ if(e.target===help) help.classList.remove('show'); };
+
+  document.addEventListener('keydown', function(e){
+    switch(e.key){
+      case 'ArrowRight': case ' ': case 'PageDown': e.preventDefault(); next(); break;
+      case 'ArrowLeft': case 'PageUp': e.preventDefault(); prev(); break;
+      case 'Home': go(0); break;
+      case 'End': go(total-1); break;
+      case 'f': case 'F': fs(); break;
+      case 'n': case 'N': toggleNotes(); break;
+      case 't': case 'T': toggleTimer(); break;
+      case 'r': case 'R': resetTimer(); break;
+      case '?': toggleHelp(); break;
+      case 'Escape': help.classList.remove('show'); notes.classList.remove('show'); break;
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
