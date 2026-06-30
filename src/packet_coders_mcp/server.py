@@ -147,22 +147,36 @@ async def configure_device(
     confirm: bool = False,
     confirm_code: str | None = None,
 ) -> dict[str, Any]:
-    """Apply config lines to a lab device behind a two-step human confirmation gate.
+    """Apply config lines to a lab device behind a human confirmation gate.
 
-    Step 1 - call WITHOUT confirm_code: returns a preview and prints a one-time
-    confirmation code to the SERVER CONSOLE only (never in this response). Step 2 - a
-    human reads that code off the console and you call again with the same commands and
-    confirm_code set to it. Only then is config sent. The model never sees the code, so it
-    cannot self-approve. Exposed by default; set PACKET_CODERS_ALLOW_WRITES=false for a
-    read-only server where this tool is not present at all.
+    Always make a first call with dry_run=true (the default) to preview, then READ the
+    response and follow its "message" — the server runs in one of two gate modes and the
+    response tells you which:
+
+    - CLIENT-GATED (host confirms each tool call, e.g. Claude Desktop / Claude Code):
+      the preview response has pending_confirmation absent/false and a message saying to
+      call again with dry_run=false. To apply, simply call again with dry_run=false and the
+      SAME commands. Do NOT ask the user for a confirmation code — there is none in this
+      mode; the host's own approve-this-tool-call prompt is the human gate.
+
+    - CODE-GATED (auto-executing host, e.g. Open WebUI; this is the default): the preview
+      response has pending_confirmation=true and a one-time code is printed to the SERVER
+      CONSOLE only (never in the response). To apply, a human reads that code off the
+      console and you call again with the same commands and confirm_code set to it. The
+      model never sees the code, so it cannot self-approve.
+
+    Only ask the user for a confirmation code when the response says
+    pending_confirmation=true. Exposed by default; set PACKET_CODERS_ALLOW_WRITES=false for
+    a read-only server where this tool is not present at all.
 
     Args:
         device_name: Inventory device name (case-insensitive). Call list_lab_devices
             first to get the exact names — do not guess.
         commands: Config lines only. Do not include configure terminal or end.
-        dry_run: Legacy preview flag; the confirm_code step now governs sending.
-        confirm: Legacy flag; superseded by confirm_code.
-        confirm_code: The one-time code shown on the server console for THIS change.
+        dry_run: True (default) previews; call again with dry_run=false to apply.
+        confirm: Legacy flag; superseded by dry_run / confirm_code.
+        confirm_code: Only used in code-gated mode — the one-time code shown on the server
+            console for THIS change (set it only when the response said pending_confirmation).
     """
     # The send_config path is blocking netmiko I/O; offload it to a thread.
     return await asyncio.to_thread(
